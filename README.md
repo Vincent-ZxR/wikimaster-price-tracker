@@ -1,27 +1,29 @@
 # WikiTrack
 
-WikiTrack transforme le texte copié du marché WikiMasters en annonces modifiables, puis les enregistre dans Supabase. L'analyse est effectuée dans le navigateur, sans OpenAI ni service d'IA payant.
+WikiTrack compare les annonces du marché WikiMasters à vos prix moyens. L'analyse du texte est gratuite et s'effectue dans le navigateur, sans service d'IA.
 
 ## Utilisation
 
-1. Sur le marché WikiMasters en français, sélectionnez et copiez le texte des annonces.
-2. Collez-le dans WikiTrack et cliquez sur **Analyser le texte**.
-3. Vérifiez et corrigez les noms, raretés, mises et durées. L'analyse utilise le nom situé après la rareté dans le texte copié. Elle signale les noms incohérents ou les formats non reconnus pour vérification.
-4. Connectez-vous et enregistrez les annonces. La durée est celle affichée lors de la copie ; la date sauvegardée correspond au moment où le texte a été collé, pas nécessairement au moment où la page a été affichée.
+1. Copiez le texte du marché WikiMasters, collez-le dans la zone d'import et cliquez sur **Analyser**.
+2. Vérifiez et corrigez si nécessaire les noms, raretés, mises et durées. Le nom situé après la rareté est utilisé ; les formats incertains sont signalés.
+3. Connectez-vous par lien email pour saisir un prix moyen entier positif et cliquez sur **OK**. Une même moyenne s'applique à toutes les annonces ayant le même nom (insensible à la casse et aux espaces supplémentaires) et la même rareté. Les moyennes enregistrées peuvent être modifiées sur les annonces ou dans **Mes prix moyens**.
 
-L'analyse fonctionne sans configuration ni connexion. La description, les statistiques et le vendeur ne sont pas enregistrés pour les nouvelles annonces. Les données existantes ne sont pas supprimées. Les enregistrements nécessitent Supabase. Les lots sont limités à 100 annonces.
+Une bonne affaire est une mise de départ au moins 20 % sous la moyenne, ou une mise actuelle au moins 30 % sous la moyenne. Si les deux mises sont renseignées, la mise actuelle est utilisée. Les annonces sans moyenne ne sont pas classées. La durée est celle affichée au moment de la copie, elle ne se met pas à jour.
+
+Les annonces et le texte importé restent temporaires dans le navigateur et disparaissent au rechargement. Seuls les prix moyens sont enregistrés dans Supabase. L'ancienne table `market_listings` et ses données sont conservées, mais la migration désactive l'ajout de nouvelles annonces. Les lots sont limités à 100 annonces.
 
 ## Configurer Supabase
 
-1. Créez un projet Supabase.
-2. Dans **SQL Editor**, exécutez [`supabase/migrations/20261114000000_create_market_listings.sql`](./supabase/migrations/20261114000000_create_market_listings.sql).
-3. Dans **Authentication → Providers**, activez la connexion par email.
-4. Dans **Authentication → URL Configuration**, définissez l'URL du site à `http://localhost:3000` pour le développement local. Ajoutez également l'URL de votre site Vercel à la liste des redirections autorisées après déploiement.
-5. Récupérez l'URL du projet et la clé anon/publishable dans les paramètres API du projet.
+1. Créez un projet Supabase. Dans **SQL Editor**, exécutez les migrations dans l'ordre :
+   - [`supabase/migrations/20261114000000_create_market_listings.sql`](./supabase/migrations/20261114000000_create_market_listings.sql)
+   - [`supabase/migrations/20261115000000_average_prices.sql`](./supabase/migrations/20261115000000_average_prices.sql)
+2. Dans **Authentication → Providers**, activez la connexion par email.
+3. Dans **Authentication → URL Configuration**, définissez l'URL du site et ajoutez les URL de redirection nécessaires, notamment celle de Vercel.
+4. Récupérez l'URL du projet et la clé anon/publishable dans les paramètres API.
 
-La migration active les règles de sécurité : chaque utilisateur ne peut lire et ajouter que ses propres annonces.
+Les règles RLS limitent les prix moyens à leur propriétaire. Pour un projet existant, appliquez uniquement la nouvelle migration ; les anciennes annonces ne sont pas supprimées.
 
-## Configurer l'application
+## Configurer et exécuter l'application
 
 Copiez `.env.example` vers `.env.local` et renseignez :
 
@@ -31,21 +33,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=votre-cle-anon-ou-publishable
 ALLOWED_EMAILS=votre-adresse@example.com
 ```
 
-La clé Supabase anon/publishable est destinée au navigateur ; l'accès aux données est limité par les règles de sécurité de Supabase. `ALLOWED_EMAILS` est une liste d'adresses autorisées, séparées par des virgules, pour l'enregistrement via l'application. Après création de votre compte, désactivez les inscriptions publiques dans Supabase Auth pour limiter la création de comptes.
-
-## Exécution locale
+`ALLOWED_EMAILS` est une liste d'adresses autorisées, séparées par des virgules. Après création de votre compte, désactivez les inscriptions publiques dans Supabase Auth. La clé anon/publishable est destinée au navigateur ; les règles RLS protègent les données.
 
 ```bash
 npm install
 npm run dev
+npm test
 ```
 
-Ouvrez [http://localhost:3000](http://localhost:3000). Pour enregistrer, connectez-vous avec le lien reçu par email.
-
-Pour vérifier l'analyse : `npm test`.
-
-## Déploiement Vercel
-
-Importez le dépôt dans Vercel, ajoutez les trois variables d'environnement ci-dessus et déployez. Ajoutez l'URL du site déployé à la liste des redirections autorisées de Supabase.
-
-L'analyse est gratuite et ne nécessite aucune clé OpenAI. Vercel et Supabase proposent des offres gratuites soumises à leurs conditions et limites respectives.
+Ouvrez [http://localhost:3000](http://localhost:3000). Pour Vercel, importez le dépôt, ajoutez les trois variables d'environnement et configurez l'URL de redirection Supabase. Les offres gratuites de Vercel et Supabase sont soumises à leurs conditions et limites respectives.

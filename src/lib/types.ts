@@ -10,31 +10,21 @@ export interface ExtractedCard {
   confidence: Confidence;
 }
 
-export type MarketListing = {
-  id: string;
+export type AveragePrice = {
+  user_id: string;
   card_name: string;
-  card_type: string | null;
-  subtitle: string | null;
-  current_price: number | null;
-  starting_price: number | null;
-  remaining_time: string | null;
-  seller: string | null;
-  confidence: Confidence;
-  captured_at: string;
-  created_at: string;
+  name_key: string;
+  card_type: string;
+  average_price: number;
 };
 
 export type Database = {
   public: {
     Tables: {
-      market_listings: {
-        Row: MarketListing & { user_id: string };
-        Insert: Omit<MarketListing, "id" | "created_at"> & {
-          id?: string;
-          created_at?: string;
-          user_id: string;
-        };
-        Update: Partial<MarketListing>;
+      average_prices: {
+        Row: AveragePrice;
+        Insert: AveragePrice;
+        Update: Partial<AveragePrice>;
         Relationships: [];
       };
     };
