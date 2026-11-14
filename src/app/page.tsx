@@ -56,6 +56,31 @@ function rarityClass(rarity: string | null): string {
   return /^(?:L|UR|SR|R|PC|C)$/u.test(normalized) ? `rarity-${normalized}` : "";
 }
 
+function CopyNameButton({ name }: { name: string }) {
+  const [feedback, setFeedback] = useState<{ name: string; success: boolean } | null>(null);
+  const visibleFeedback = feedback?.name === name ? feedback : null;
+
+  async function copyName() {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(name);
+      setFeedback({ name, success: true });
+    } catch {
+      setFeedback({ name, success: false });
+    }
+  }
+
+  return <span className="copy-control">
+    <button className="copy-button" type="button" disabled={!name.trim()}
+      aria-label={`Copier le nom ${name || "de la carte"}`} onClick={() => void copyName()}>
+      {visibleFeedback?.success ? "Copié" : "Copier"}
+    </button>
+    <span role="status" className={visibleFeedback && !visibleFeedback.success ? "copy-error" : "sr-only"}>
+      {visibleFeedback ? visibleFeedback.success ? "Nom copié." : "Copie impossible. Vérifiez les autorisations du navigateur." : ""}
+    </span>
+  </span>;
+}
+
 export default function Home() {
   const [supabase] = useState(createSupabaseBrowserClient);
   const [session, setSession] = useState<Session | null>(null);
@@ -331,7 +356,7 @@ export default function Home() {
               <th><span className="sr-only">Supprimer</span></th>
             </tr></thead>
             <tbody>{sortedRows.map(({ card, reference, comparison, legendary, expiration, night }) => <tr key={card.id}>
-              <td><label className="sr-only" htmlFor={`name-${card.id}`}>Nom de la carte</label><input id={`name-${card.id}`} className="table-input name-input" value={card.cardName} onChange={(event) => updateCard(card.id, "cardName", event.target.value)} /></td>
+              <td><div className="name-cell"><label className="sr-only" htmlFor={`name-${card.id}`}>Nom de la carte</label><input id={`name-${card.id}`} className="table-input name-input" value={card.cardName} onChange={(event) => updateCard(card.id, "cardName", event.target.value)} /><CopyNameButton name={card.cardName} /></div></td>
               <td><label className="sr-only" htmlFor={`type-${card.id}`}>Rareté</label><input id={`type-${card.id}`} className={`table-input type-input rarity-badge ${rarityClass(card.cardType)}`} value={card.cardType ?? ""} onChange={(event) => updateCard(card.id, "cardType", event.target.value)} /></td>
               <td><label className="sr-only" htmlFor={`bid-${card.id}`}>Prix de la mise</label><input id={`bid-${card.id}`} className="table-input number-input" type="number" min="0" step="1" value={card[card.bidKind] ?? ""} onChange={(event) => updateCard(card.id, card.bidKind, event.target.value)} /></td>
               <td><label className="sr-only" htmlFor={`kind-${card.id}`}>Type de mise</label><select id={`kind-${card.id}`} className="bid-kind" value={card.bidKind} onChange={(event) => updateBidKind(card.id, event.target.value === "currentPrice" ? "currentPrice" : "startingPrice")}>
@@ -363,7 +388,7 @@ export default function Home() {
               <SortHeader label="Prix moyen" column="average" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
             </tr></thead>
             <tbody>{sortedPrices.map((price) => <tr key={priceKey(price.card_name, price.card_type)}>
-              <td>{price.card_name}</td><td><span className={`rarity-badge ${rarityClass(price.card_type)}`}>{price.card_type}</span></td><td>{priceEditor(price.card_name, price.card_type, `saved-${priceKey(price.card_name, price.card_type)}`)}</td>
+              <td><div className="name-cell">{price.card_name}<CopyNameButton name={price.card_name} /></div></td><td><span className={`rarity-badge ${rarityClass(price.card_type)}`}>{price.card_type}</span></td><td>{priceEditor(price.card_name, price.card_type, `saved-${priceKey(price.card_name, price.card_type)}`)}</td>
             </tr>)}</tbody>
           </table></div>)}
       </section>}
