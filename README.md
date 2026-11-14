@@ -6,13 +6,15 @@ WikiTrack compare les annonces du marché WikiMasters à vos prix moyens. L'anal
 
 1. Copiez le texte du marché WikiMasters, collez-le dans la zone d'import et cliquez sur **Analyser**.
 2. Vérifiez et corrigez si nécessaire les noms, raretés, mises et durées. Le nom situé après la rareté est utilisé ; les formats incertains sont signalés.
-3. Connectez-vous par lien email pour saisir un prix moyen entier positif et cliquez sur **OK**. Une même moyenne s'applique à toutes les annonces ayant le même nom (insensible à la casse et aux espaces supplémentaires) et la même rareté. L'onglet **Mes prix moyens** permet de consulter et modifier toutes les moyennes enregistrées.
+3. Connectez-vous par lien email pour saisir un prix moyen entier positif et cliquez sur **OK**. Une même moyenne s'applique à toutes les annonces ayant le même nom (insensible à la casse et aux espaces supplémentaires) et la même rareté. Enregistrer une nouvelle valeur pour cette carte et cette rareté remplace la précédente. L'onglet **Mes prix moyens** permet de consulter et modifier toutes les moyennes enregistrées.
 
-Une bonne affaire est une mise de départ au moins 20 % sous la moyenne, ou une mise actuelle au moins 30 % sous la moyenne. Les cartes légendaires (L) dont la mise est strictement inférieure à 234 sont aussi signalées et placées en tête, même sans moyenne. Si les deux mises sont renseignées, la mise actuelle est utilisée.
+Une bonne affaire est une mise de départ au moins 20 % sous la moyenne, ou une mise actuelle au moins 30 % sous la moyenne. Les cartes légendaires (L) dont la mise est strictement inférieure à 234 sont aussi signalées et placées en tête, même sans moyenne. Le type de mise peut être corrigé à côté du prix.
 
-Les couleurs des lignes correspondent aux raretés du jeu. L'heure d'expiration est estimée en ajoutant la durée restante à l'heure du collage, dans le fuseau horaire du navigateur. Les expirations entre 3h inclus et 7h exclu sont signalées. La durée ne se met pas à jour : si le texte a été modifié après le collage ou saisi manuellement, recollez-le pour calculer l'expiration.
+Cliquez sur un en-tête pour trier les annonces ou les prix moyens ; un deuxième clic inverse le tri et un troisième rétablit l'ordre par défaut. Les étiquettes indiquent la couleur des raretés du jeu. L'heure d'expiration est estimée en ajoutant la durée restante à l'heure du collage, dans le fuseau horaire du navigateur. Les expirations entre 3h inclus et 7h exclu sont signalées. La durée ne se met pas à jour : si le texte a été modifié après le collage ou saisi manuellement, recollez-le pour calculer l'expiration.
 
 Les annonces et le texte importé restent temporaires dans le navigateur et disparaissent au rechargement. Seuls les prix moyens sont enregistrés dans Supabase. L'ancienne table `market_listings` et ses données sont conservées, mais la migration désactive l'ajout de nouvelles annonces. Les lots sont limités à 100 annonces.
+
+La police Poppins est distribuée sous la [SIL Open Font License](./public/fonts/OFL.txt).
 
 ## Configurer Supabase
 

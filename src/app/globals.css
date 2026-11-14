@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: Poppins;
+  src: url("/fonts/Poppins-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Poppins;
+  src: url("/fonts/Poppins-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
   --background: #090b0b;
@@ -12,7 +28,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-sans: Poppins, Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -21,11 +37,11 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font: 14px Arial, Helvetica, sans-serif;
+  font: 14px Poppins, Arial, sans-serif;
 }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
 button, a { color: inherit; }
-button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -79,18 +95,8 @@ h2 { font-size: 18px; }
 }
 .review-table td { padding: 10px 12px; border-bottom: 1px solid #202722; font-size: 12px; }
 .review-table tbody tr:last-child td { border-bottom: 0; }
-.review-table .rarity-L { background: rgb(247 217 81 / 17%); }
-.review-table .rarity-UR { background: rgb(242 166 70 / 17%); }
-.review-table .rarity-C { background: rgb(198 244 216 / 17%); }
-.review-table .rarity-PC { background: rgb(186 204 241 / 17%); }
-.review-table .rarity-SR { background: rgb(213 110 157 / 19%); }
-.review-table .rarity-R { background: rgb(187 168 237 / 19%); }
-.review-table .rarity-L td:first-child { box-shadow: inset 4px 0 #f7d951; }
-.review-table .rarity-UR td:first-child { box-shadow: inset 4px 0 #f2a646; }
-.review-table .rarity-C td:first-child { box-shadow: inset 4px 0 #c6f4d8; }
-.review-table .rarity-PC td:first-child { box-shadow: inset 4px 0 #baccf1; }
-.review-table .rarity-SR td:first-child { box-shadow: inset 4px 0 #d56e9d; }
-.review-table .rarity-R td:first-child { box-shadow: inset 4px 0 #bba8ed; }
+.sort-button { padding: 0; border: 0; background: none; color: inherit; cursor: pointer; font-size: inherit; text-align: left; }
+.sort-button:hover, th[aria-sort] .sort-button { color: var(--foreground); }
 .table-input, .signin-form input, textarea {
   border: 1px solid #39433b;
   border-radius: 5px;
@@ -99,10 +105,31 @@ h2 { font-size: 18px; }
 }
 .table-input { height: 34px; padding: 0 8px; }
 .table-input:disabled { opacity: .6; }
-.name-input { width: 180px; }
+.name-input { width: 180px; font-weight: 700; }
 .type-input { width: 56px; }
+.rarity-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  min-height: 28px;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  text-align: center;
+  text-transform: uppercase;
+  font-size: 11px;
+  font-weight: 700;
+}
+.rarity-badge.rarity-L { background: #f7d951; color: #211a05; }
+.rarity-badge.rarity-UR { background: #f2a646; color: #271704; }
+.rarity-badge.rarity-C { background: #c6f4d8; color: #11241a; }
+.rarity-badge.rarity-PC { background: #baccf1; color: #111a2b; }
+.rarity-badge.rarity-SR { background: #d56e9d; color: #290f1b; }
+.rarity-badge.rarity-R { background: #bba8ed; color: #1d1531; }
 .number-input { width: 110px; }
 .time-input { width: 100px; }
+.bid-kind { padding: 7px 8px; border: 1px solid #3b5745; border-radius: 6px; background: #16271c; color: #b4e8c5; cursor: pointer; font-size: 11px; }
 .price-editor { display: flex; align-items: center; gap: 5px; }
 .small-button, .primary-button {
   border: 1px solid var(--accent);

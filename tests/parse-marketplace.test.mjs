@@ -16,6 +16,7 @@ test("reads repeated names and rarity from multiline listings independently of d
     {
       cardName: "Remco Evenepoel",
       cardType: "L",
+      bidKind: "startingPrice",
       currentPrice: null,
       startingPrice: 4500,
       remainingTime: "2h 15m",
@@ -24,6 +25,7 @@ test("reads repeated names and rarity from multiline listings independently of d
     {
       cardName: "Pauline Ferrand-Prévot",
       cardType: "UR",
+      bidKind: "currentPrice",
       currentPrice: 150,
       startingPrice: null,
       remainingTime: "6m 34s",
@@ -67,7 +69,17 @@ test("keeps a card editable and warns when a multiline header is missing", () =>
   assert.equal(cards.length, 1);
   assert.equal(cards[0].cardName, "");
   assert.equal(cards[0].currentPrice, 50);
+  assert.equal(cards[0].bidKind, "currentPrice");
   assert.match(warnings.join(" "), /non reconnu/);
+});
+
+test("keeps the bid kind when the detected price is too large", () => {
+  const { cards, warnings } = parseMarketplaceText(
+    "Carte\nUR\nCarte\nMise actuelle\n99999999999999999999\nDurée\n1h",
+  );
+  assert.equal(cards[0].currentPrice, null);
+  assert.equal(cards[0].bidKind, "currentPrice");
+  assert.match(warnings.join(" "), /prix invalide/);
 });
 
 test("still supports the previously supplied concatenated format", () => {

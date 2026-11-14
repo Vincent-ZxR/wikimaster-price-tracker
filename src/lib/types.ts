@@ -4,6 +4,7 @@ export interface ExtractedCard {
   id: string;
   cardName: string;
   cardType: string | null;
+  bidKind: "startingPrice" | "currentPrice";
   currentPrice: number | null;
   startingPrice: number | null;
   remainingTime: string | null;

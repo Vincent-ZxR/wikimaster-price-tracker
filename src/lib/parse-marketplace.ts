@@ -95,6 +95,7 @@ export function parseMarketplaceText(text: string): {
     cards.push({
       cardName: header?.name ?? "",
       cardType: header?.type ?? null,
+      bidKind: current ? "currentPrice" : "startingPrice",
       currentPrice: current ? validPrice : null,
       startingPrice: current ? null : validPrice,
       remainingTime: match[3].trim().replace(/\s+/gu, " "),
