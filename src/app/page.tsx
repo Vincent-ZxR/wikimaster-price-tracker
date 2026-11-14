@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { parseMarketplaceText } from "@/lib/parse-marketplace";
-import { compareListing, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
+import { compareListing, expirationAt, isLegendaryDeal, isNightExpiration, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
 import type { AveragePrice, ExtractedCard } from "@/lib/types";
 
 type PricesState =
   | { userId: string; token: string; status: "ready"; prices: AveragePrice[] }
   | { userId: string; token: string; status: "error"; message: string };
+
+function rarityClass(rarity: string | null): string {
+  const normalized = normalizeRarity(rarity ?? "");
+  return /^(?:L|UR|SR|R|PC|C)$/u.test(normalized) ? `rarity-${normalized}` : "";
+}
 
 export default function Home() {
   const [supabase] = useState(createSupabaseBrowserClient);
@@ -21,6 +26,10 @@ export default function Home() {
   const [authMessage, setAuthMessage] = useState("");
   const [text, setText] = useState("");
   const [cards, setCards] = useState<ExtractedCard[]>([]);
+  const [activeTab, setActiveTab] = useState<"annonces" | "prices">("annonces");
+  const pendingPaste = useRef<number | null>(null);
+  const [textPastedAt, setTextPastedAt] = useState<number | null>(null);
+  const [cardsPastedAt, setCardsPastedAt] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const [pricesState, setPricesState] = useState<PricesState | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -105,6 +114,7 @@ export default function Home() {
   function handleAnalyze() {
     const result = parseMarketplaceText(text);
     setCards(result.cards.map((card) => ({ ...card, id: crypto.randomUUID() })));
+    setCardsPastedAt(textPastedAt);
     setNotice([
       result.cards.length ? `${result.cards.length} annonce(s) détectée(s).` : "",
       ...result.warnings,
@@ -187,10 +197,18 @@ export default function Home() {
 
   const rows = cards.map((card) => {
     const reference = priceMap.get(priceKey(card.cardName, card.cardType ?? ""));
-    return { card, reference, comparison: compareListing(card, reference?.average_price ?? null) };
+    const expiration = expirationAt(cardsPastedAt, card.remainingTime);
+    return {
+      card, reference, expiration,
+      comparison: compareListing(card, reference?.average_price ?? null),
+      legendary: isLegendaryDeal(card),
+      night: isNightExpiration(expiration),
+    };
   });
-  const dealCount = rows.filter((row) => row.comparison?.good).length;
-  const sortedRows = [...rows].sort((a, b) => Number(Boolean(b.comparison?.good)) - Number(Boolean(a.comparison?.good)));
+  const dealCount = rows.filter((row) => row.legendary || row.comparison?.good).length;
+  const sortedRows = [...rows].sort((a, b) =>
+    Number(b.legendary) - Number(a.legendary) ||
+    Number(Boolean(b.comparison?.good)) - Number(Boolean(a.comparison?.good)));
 
   return (
     <main className="app-shell">
@@ -204,6 +222,12 @@ export default function Home() {
         </div>}
       </header>
 
+      <nav className="tabs" aria-label="Sections">
+        <button type="button" aria-pressed={activeTab === "annonces"} onClick={() => setActiveTab("annonces")}>Annonces</button>
+        <button type="button" aria-pressed={activeTab === "prices"} onClick={() => setActiveTab("prices")}>Mes prix moyens</button>
+      </nav>
+
+      {activeTab === "annonces" && <>
       <section className="list-section" aria-labelledby="list-heading">
         <div className="section-heading">
           <div><h1 id="list-heading">Annonces</h1><p>Les bonnes affaires apparaissent en premier.</p></div>
@@ -211,34 +235,55 @@ export default function Home() {
         </div>
         {cards.length === 0 ? <div className="empty-state">Aucune annonce pour le moment. Collez le texte du marché ci-dessous.</div> :
           <div className="table-scroll"><table className="review-table">
-            <thead><tr><th>Carte</th><th>Rareté</th><th>Départ</th><th>Actuelle</th><th>Prix moyen</th><th>Comparaison</th><th>Durée à la copie</th><th><span className="sr-only">Supprimer</span></th></tr></thead>
-            <tbody>{sortedRows.map(({ card, reference, comparison }) => <tr key={card.id} className={comparison?.good ? "deal-row" : ""}>
-              <td><label className="sr-only" htmlFor={`name-${card.id}`}>Nom de la carte</label><input id={`name-${card.id}`} className="table-input name-input" value={card.cardName} onChange={(event) => updateCard(card.id, "cardName", event.target.value)} />
-                {card.confidence !== "high" && <span className="warning">Nom ou rareté à vérifier</span>}</td>
+            <thead><tr><th>Carte</th><th>Rareté</th><th>Départ</th><th>Actuelle</th><th>Prix moyen</th><th>Comparaison</th><th>Alertes</th><th>Durée au collage</th><th><span className="sr-only">Supprimer</span></th></tr></thead>
+            <tbody>{sortedRows.map(({ card, reference, comparison, legendary, expiration, night }) => <tr key={card.id} className={rarityClass(card.cardType)}>
+              <td><label className="sr-only" htmlFor={`name-${card.id}`}>Nom de la carte</label><input id={`name-${card.id}`} className="table-input name-input" value={card.cardName} onChange={(event) => updateCard(card.id, "cardName", event.target.value)} /></td>
               <td><label className="sr-only" htmlFor={`type-${card.id}`}>Rareté</label><input id={`type-${card.id}`} className="table-input type-input" value={card.cardType ?? ""} onChange={(event) => updateCard(card.id, "cardType", event.target.value)} /></td>
               <td><label className="sr-only" htmlFor={`start-${card.id}`}>Mise de départ</label><input id={`start-${card.id}`} className="table-input number-input" type="number" min="0" step="1" value={card.startingPrice ?? ""} onChange={(event) => updateCard(card.id, "startingPrice", event.target.value)} /></td>
               <td><label className="sr-only" htmlFor={`current-${card.id}`}>Mise actuelle</label><input id={`current-${card.id}`} className="table-input number-input" type="number" min="0" step="1" value={card.currentPrice ?? ""} onChange={(event) => updateCard(card.id, "currentPrice", event.target.value)} /></td>
               <td>{priceEditor(card.cardName, card.cardType ?? "", `average-${card.id}`)}</td>
               <td>{comparison ? <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span> : <span className="muted">{reference ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
-              <td><label className="sr-only" htmlFor={`time-${card.id}`}>Durée à la copie</label><input id={`time-${card.id}`} className="table-input time-input" value={card.remainingTime ?? ""} onChange={(event) => updateCard(card.id, "remainingTime", event.target.value)} /></td>
+              <td><div className="flags">{legendary && <span className="flag legendary-flag">L &lt; 234</span>}{night && <span className="flag night-flag">Expire entre 3h et 7h</span>}{!legendary && !night && <span className="muted">—</span>}</div></td>
+              <td><label className="sr-only" htmlFor={`time-${card.id}`}>Durée au collage</label><input id={`time-${card.id}`} className="table-input time-input" value={card.remainingTime ?? ""} onChange={(event) => updateCard(card.id, "remainingTime", event.target.value)} />
+                {expiration && <span className="expiration">Expire le {expiration.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>}
+                {cardsPastedAt !== null && !expiration && <span className="expiration">Durée invalide</span>}</td>
               <td><button className="remove-row" type="button" aria-label={`Retirer ${card.cardName || "l’annonce"}`} onClick={() => setCards((current) => current.filter((entry) => entry.id !== card.id))}>×</button></td>
             </tr>)}</tbody>
           </table></div>}
-        <p className="footnote">Seuils : départ ≤ −20 % ; actuelle ≤ −30 %. Si les deux mises sont renseignées, la mise actuelle est utilisée. Les annonces restent dans cette page uniquement.</p>
-        {priceMessage && <p className="notice" role="status">{priceMessage}</p>}
-        {loadingPrices && <p className="notice" role="status">Chargement des prix moyens…</p>}
-        {currentState?.status === "error" && <p className="notice error" role="alert">{currentState.message} Actualisez la page pour réessayer.</p>}
+        <p className="footnote">Seuils : départ ≤ −20 % ; actuelle ≤ −30 % ; légendaire &lt; 234. La mise actuelle prévaut. Expiration estimée selon l’heure du collage et le fuseau local, de 3h inclus à 7h exclu. Les annonces restent temporaires.</p>
+        {cards.length > 0 && cardsPastedAt === null && <p className="notice">Heure du collage inconnue : collez à nouveau le texte pour calculer les expirations.</p>}
       </section>
 
       <section className="import-section" aria-labelledby="import-heading">
         <div className="section-heading"><h2 id="import-heading">Importer des annonces</h2></div>
         <label className="sr-only" htmlFor="market-text">Texte du marché WikiMasters</label>
         <div className="import-controls">
-          <textarea id="market-text" value={text} onChange={(event) => setText(event.target.value)} placeholder="Collez ici le texte copié du marché WikiMasters…" />
+          <textarea id="market-text" value={text} onPaste={() => { pendingPaste.current = Date.now(); }} onChange={(event) => {
+            setText(event.target.value);
+            setTextPastedAt(pendingPaste.current);
+            pendingPaste.current = null;
+          }} placeholder="Collez ici le texte copié du marché WikiMasters…" />
           <button className="primary-button" disabled={!text.trim()} onClick={handleAnalyze} type="button">Analyser</button>
         </div>
         {notice && <p className="notice" role="status">{notice}</p>}
       </section>
+      </>}
+
+      {activeTab === "prices" && <section className="saved-section" aria-labelledby="saved-heading">
+        <div className="section-heading"><h1 id="saved-heading">Mes prix moyens</h1>{currentState?.status === "ready" && <span className="muted">{prices.length} référence(s)</span>}</div>
+        {!session && <div className="empty-state">Connectez-vous pour consulter vos prix moyens.</div>}
+        {session && currentState?.status === "ready" && (prices.length === 0 ? <div className="empty-state">Renseignez un prix moyen sur une annonce pour le retrouver ici.</div> :
+          <div className="table-scroll"><table className="review-table saved-table">
+            <thead><tr><th>Carte</th><th>Rareté</th><th>Prix moyen</th></tr></thead>
+            <tbody>{[...prices].sort((a, b) => a.card_name.localeCompare(b.card_name, "fr")).map((price) => <tr key={priceKey(price.card_name, price.card_type)} className={rarityClass(price.card_type)}>
+              <td>{price.card_name}</td><td>{price.card_type}</td><td>{priceEditor(price.card_name, price.card_type, `saved-${priceKey(price.card_name, price.card_type)}`)}</td>
+            </tr>)}</tbody>
+          </table></div>)}
+      </section>}
+
+      {priceMessage && <p className="notice" role="status">{priceMessage}</p>}
+      {loadingPrices && <p className="notice" role="status">Chargement des prix moyens…</p>}
+      {currentState?.status === "error" && <p className="notice error" role="alert">{currentState.message} Actualisez la page pour réessayer.</p>}
 
       {!supabase && <p className="notice error">Configurez Supabase pour enregistrer vos prix moyens. L’analyse reste disponible sans connexion.</p>}
       {supabase && !authReady && <p className="notice">Vérification de la connexion…</p>}
@@ -252,16 +297,6 @@ export default function Home() {
       </section>}
       {authMessage && <p className="notice" role="status">{authMessage}</p>}
 
-      {session && currentState?.status === "ready" && <section className="saved-section">
-        <div className="section-heading"><h2>Mes prix moyens</h2><span className="muted">{prices.length} référence(s)</span></div>
-        {prices.length === 0 ? <div className="empty-state">Renseignez un prix moyen sur une annonce pour le retrouver ici.</div> :
-          <div className="table-scroll"><table className="review-table saved-table">
-            <thead><tr><th>Carte</th><th>Rareté</th><th>Prix moyen</th></tr></thead>
-            <tbody>{[...prices].sort((a, b) => a.card_name.localeCompare(b.card_name, "fr")).map((price) => <tr key={priceKey(price.card_name, price.card_type)}>
-              <td>{price.card_name}</td><td>{price.card_type}</td><td>{priceEditor(price.card_name, price.card_type, `saved-${priceKey(price.card_name, price.card_type)}`)}</td>
-            </tr>)}</tbody>
-          </table></div>}
-      </section>}
       <footer className="footer">WIKITRACK · Analyse gratuite dans votre navigateur</footer>
     </main>
   );

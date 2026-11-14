@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareListing, priceKey } from "../src/lib/deals.ts";
+import { compareListing, expirationAt, isLegendaryDeal, isNightExpiration, priceKey } from "../src/lib/deals.ts";
 
 test("starting bids are good deals at or below 20% under the average", () => {
   assert.equal(compareListing({ startingPrice: 800, currentPrice: null }, 1000).good, true);
@@ -34,4 +34,28 @@ test("reference keys ignore case and extra whitespace but distinguish rarity", (
   assert.equal(priceKey("  PAUL   SEIXAS ", "ur"), priceKey("Paul Seixas", "UR"));
   assert.notEqual(priceKey("Paul Seixas", "UR"), priceKey("Paul Seixas", "L"));
   assert.equal(priceKey("Pogac\u030car", "L"), priceKey("Pogačar", "l"));
+});
+
+test("legendary special price is strictly below 234 and uses current bid first", () => {
+  assert.equal(isLegendaryDeal({ cardType: " l ", startingPrice: 233, currentPrice: null }), true);
+  assert.equal(isLegendaryDeal({ cardType: "L", startingPrice: 234, currentPrice: null }), false);
+  assert.equal(isLegendaryDeal({ cardType: "UR", startingPrice: 233, currentPrice: null }), false);
+  assert.equal(isLegendaryDeal({ cardType: "L", startingPrice: 1, currentPrice: 234 }), false);
+  assert.equal(isLegendaryDeal({ cardType: "L", startingPrice: null, currentPrice: 0 }), true);
+  assert.equal(isLegendaryDeal({ cardType: "L", startingPrice: null, currentPrice: null }), false);
+});
+
+test("night expiration uses the paste time and local time across midnight and days", () => {
+  const pasted = new Date(2026, 0, 1, 23, 0, 0).getTime();
+  const atThree = expirationAt(pasted, "4h");
+  assert.equal(atThree.getDate(), 2);
+  assert.equal(isNightExpiration(atThree), true);
+  assert.equal(isNightExpiration(expirationAt(pasted, "3h 59m 59s")), false);
+  assert.equal(isNightExpiration(expirationAt(pasted, "7h 59m 59s")), true);
+  assert.equal(isNightExpiration(expirationAt(pasted, "8h")), false);
+  assert.equal(isNightExpiration(expirationAt(pasted, "1j 4h")), true);
+  assert.equal(isNightExpiration(expirationAt(pasted, "1d 4h")), true);
+  assert.equal(expirationAt(null, "4h"), null);
+  assert.equal(expirationAt(pasted, "unknown"), null);
+  assert.equal(expirationAt(pasted, "4h invalid"), null);
 });
