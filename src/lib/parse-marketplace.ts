@@ -18,9 +18,8 @@ function findLineHeader(segment: string): Header | null {
       first.toLocaleLowerCase("fr-FR") !== "wikimasters" &&
       !/^vendu\s+par\b/iu.test(first);
     if (!second || RARITY.test(second) || /^\d[\d\s]*$/u.test(second)) continue;
-    const name = firstIsName ? first : second;
     return {
-      name,
+      name: second,
       type: lines[index],
       uncertain: !firstIsName || first !== second,
     };

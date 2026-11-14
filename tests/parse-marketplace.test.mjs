@@ -54,7 +54,7 @@ test("warns when names disagree and handles the WikiMasters image placeholder", 
   ].join("\n");
   const { cards, warnings } = parseMarketplaceText(text);
   assert.equal(cards[0].cardName, "Tour de France 2027");
-  assert.equal(cards[1].cardName, "Nom original");
+  assert.equal(cards[1].cardName, "Nom différent");
   assert.equal(cards[0].confidence, "low");
   assert.equal(cards[1].confidence, "low");
   assert.equal(warnings.length, 2);

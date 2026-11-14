@@ -6,7 +6,7 @@ WikiTrack transforme le texte copié du marché WikiMasters en annonces modifiab
 
 1. Sur le marché WikiMasters en français, sélectionnez et copiez le texte des annonces.
 2. Collez-le dans WikiTrack et cliquez sur **Analyser le texte**.
-3. Vérifiez et corrigez les noms, raretés, mises et durées. L'analyse utilise le nom et la rareté présents dans le texte copié. Elle signale les noms incohérents ou les formats non reconnus pour vérification.
+3. Vérifiez et corrigez les noms, raretés, mises et durées. L'analyse utilise le nom situé après la rareté dans le texte copié. Elle signale les noms incohérents ou les formats non reconnus pour vérification.
 4. Connectez-vous et enregistrez les annonces. La durée est celle affichée lors de la copie ; la date sauvegardée correspond au moment où le texte a été collé, pas nécessairement au moment où la page a été affichée.
 
 L'analyse fonctionne sans configuration ni connexion. La description, les statistiques et le vendeur ne sont pas enregistrés pour les nouvelles annonces. Les données existantes ne sont pas supprimées. Les enregistrements nécessitent Supabase. Les lots sont limités à 100 annonces.
