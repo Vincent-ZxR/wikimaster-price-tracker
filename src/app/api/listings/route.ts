@@ -35,11 +35,9 @@ function isSaveRequest(value: unknown): value is SaveRequest {
       card.cardName.trim().length > 0 &&
       card.cardName.length <= 200 &&
       isNullableString(card.cardType) &&
-      isNullableString(card.subtitle) &&
       isNullablePrice(card.currentPrice) &&
       isNullablePrice(card.startingPrice) &&
       isNullableString(card.remainingTime) &&
-      isNullableString(card.seller) &&
       (card.confidence === "high" ||
         card.confidence === "medium" ||
         card.confidence === "low")
@@ -71,11 +69,11 @@ export async function POST(request: Request) {
     user_id: authenticated.user.id,
     card_name: card.cardName.trim(),
     card_type: card.cardType?.trim() || null,
-    subtitle: card.subtitle?.trim() || null,
+    subtitle: null,
     current_price: card.currentPrice,
     starting_price: card.startingPrice,
     remaining_time: card.remainingTime?.trim() || null,
-    seller: card.seller?.trim() || null,
+    seller: null,
     confidence: card.confidence,
     captured_at: new Date(body.capturedAt).toISOString(),
   }));

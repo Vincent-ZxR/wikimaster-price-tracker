@@ -348,7 +348,7 @@ export default function Home() {
                 }}
                 placeholder="Collez ici le texte des annonces du marché…"
               />
-              <span>Copiez le texte des cartes, y compris les mises, durées et vendeurs.</span>
+              <span>Copiez le texte des cartes, y compris les raretés, mises et durées.</span>
             </div>
           </section>
 
@@ -382,38 +382,29 @@ export default function Home() {
                 <table className="review-table">
                   <thead>
                     <tr>
-                      <th>Carte / description</th>
-                      <th>Type</th>
+                      <th>Carte</th>
+                      <th>Rareté</th>
                       <th>Mise actuelle</th>
                       <th>Mise de départ</th>
                       <th>Durée restante</th>
-                      <th>Vendeur</th>
                       <th>Vérification</th>
                       <th aria-label="Remove card" />
                     </tr>
                   </thead>
                   <tbody>
-                    {cards.map((card, index) => (
+                    {cards.map((card) => (
                       <tr key={card.id}>
                         <td>
-                          <label className="sr-only" htmlFor={`name-${card.id}`}>Card or player name</label>
+                          <label className="sr-only" htmlFor={`name-${card.id}`}>Nom de la carte</label>
                           <input
                             id={`name-${card.id}`}
                             className="table-input name-input"
                             onChange={(event) => setCards((current) => updateCard(current, card.id, "cardName", event.target.value))}
                             value={card.cardName}
                           />
-                          <label className="sr-only" htmlFor={`subtitle-${card.id}`}>Description de l’annonce {index + 1}</label>
-                          <input
-                            id={`subtitle-${card.id}`}
-                            className="table-input subtitle-input"
-                            onChange={(event) => setCards((current) => updateCard(current, card.id, "subtitle", event.target.value))}
-                            placeholder="Description"
-                            value={card.subtitle ?? ""}
-                          />
                         </td>
                         <td>
-                          <label className="sr-only" htmlFor={`type-${card.id}`}>Card type</label>
+                          <label className="sr-only" htmlFor={`type-${card.id}`}>Rareté</label>
                           <input
                             id={`type-${card.id}`}
                             className="table-input type-input"
@@ -422,7 +413,7 @@ export default function Home() {
                           />
                         </td>
                         <td>
-                          <label className="sr-only" htmlFor={`current-${card.id}`}>Current price</label>
+                          <label className="sr-only" htmlFor={`current-${card.id}`}>Mise actuelle</label>
                           <input
                             id={`current-${card.id}`}
                             className="table-input number-input"
@@ -433,7 +424,7 @@ export default function Home() {
                           />
                         </td>
                         <td>
-                          <label className="sr-only" htmlFor={`starting-${card.id}`}>Starting price</label>
+                          <label className="sr-only" htmlFor={`starting-${card.id}`}>Mise de départ</label>
                           <input
                             id={`starting-${card.id}`}
                             className="table-input number-input"
@@ -444,7 +435,7 @@ export default function Home() {
                           />
                         </td>
                         <td>
-                          <label className="sr-only" htmlFor={`remaining-${card.id}`}>Time remaining</label>
+                          <label className="sr-only" htmlFor={`remaining-${card.id}`}>Durée restante</label>
                           <input
                             id={`remaining-${card.id}`}
                             className="table-input time-input"
@@ -452,16 +443,7 @@ export default function Home() {
                             value={card.remainingTime ?? ""}
                           />
                         </td>
-                        <td>
-                          <label className="sr-only" htmlFor={`seller-${card.id}`}>Seller</label>
-                          <input
-                            id={`seller-${card.id}`}
-                            className="table-input seller-input"
-                            onChange={(event) => setCards((current) => updateCard(current, card.id, "seller", event.target.value))}
-                            value={card.seller ?? ""}
-                          />
-                        </td>
-                        <td><span className={`confidence confidence-${card.confidence}`}>À vérifier</span></td>
+                        <td><span className={`confidence confidence-${card.confidence}`}>{card.confidence === "high" ? "Nom répété" : "À vérifier"}</span></td>
                         <td>
                           <button
                             aria-label={`Remove ${card.cardName || "card"}`}
@@ -476,7 +458,7 @@ export default function Home() {
                 </table>
               </div>
               <div className="review-footer">
-                <span className="review-footnote">Les noms et vendeurs peuvent être collés : vérifiez toutes les valeurs. L’heure de copie sert de référence pour la durée.</span>
+                <span className="review-footnote">Vérifiez les valeurs avant l’enregistrement. L’heure de copie sert de référence pour la durée.</span>
                 <button className="primary-button save-button" disabled={saving || !session} onClick={handleSave} type="button">
                   {!session ? "Connectez-vous pour enregistrer" : saving ? "Enregistrement…" : `Enregistrer ${cards.length} annonce(s)`}
                   {!saving && <ArrowIcon />}
@@ -509,11 +491,10 @@ export default function Home() {
                   <thead>
                     <tr>
                       <th>Carte</th>
-                      <th>Type</th>
+                      <th>Rareté</th>
                       <th>Mise actuelle</th>
                       <th>Mise de départ</th>
                       <th>Durée lors de la copie</th>
-                      <th>Vendeur</th>
                       <th>Copié le</th>
                     </tr>
                   </thead>
@@ -522,13 +503,11 @@ export default function Home() {
                       <tr key={listing.id}>
                         <td>
                           <span className="saved-name">{listing.card_name}</span>
-                          {listing.subtitle && <span className="table-subtext">{listing.subtitle}</span>}
                         </td>
                         <td>{listing.card_type || "—"}</td>
                         <td className="price-cell">{formatPrice(listing.current_price)}</td>
                         <td>{formatPrice(listing.starting_price)}</td>
                         <td>{listing.remaining_time || "—"}</td>
-                        <td>{listing.seller || "—"}</td>
                         <td>{new Date(listing.captured_at).toLocaleString()}</td>
                       </tr>
                     ))}

@@ -4,11 +4,9 @@ export interface ExtractedCard {
   id: string;
   cardName: string;
   cardType: string | null;
-  subtitle: string | null;
   currentPrice: number | null;
   startingPrice: number | null;
   remainingTime: string | null;
-  seller: string | null;
   confidence: Confidence;
 }
 

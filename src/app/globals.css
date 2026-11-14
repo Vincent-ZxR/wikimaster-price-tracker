@@ -705,12 +705,6 @@ kbd {
   color: var(--foreground);
 }
 
-.subtitle-input {
-  min-width: 145px;
-  margin-top: 5px;
-  color: #a7b0a9;
-}
-
 .type-input {
   width: 64px;
 }
@@ -721,10 +715,6 @@ kbd {
 
 .time-input {
   width: 94px;
-}
-
-.seller-input {
-  width: 112px;
 }
 
 .table-subtext {

@@ -1,49 +1,54 @@
 import type { ExtractedCard } from "./types";
 
 type ParsedCard = Omit<ExtractedCard, "id">;
+type Header = { type: string; name: string; uncertain: boolean };
 
-type Header = {
-  start: number;
-  type: string;
-  name: string;
-  subtitle: string | null;
-};
-
-const LISTING = /Mise\s+(de\s+départ|actuelle)\s*([\d\u00a0\u202f ]+?)\s*Durée\s*((?:\d+\s*[jdhms]\s*)+)\s*Vendu\s+par\s*/giu;
-const STATS_AT_END = /(\d{1,3}(?:[\u00a0\u202f ]\d{3})+|\d+)(\d{1,3}(?:[\u00a0\u202f ]\d{3})+|\d+)\s*$/u;
-const DESCRIPTION = /coureur\s|coureuse\s|cycliste\s|course\s|\d+(?:e|ème)\s+édition\s/iu;
-const BADGE = /(?:UR|SR|PC|L|R|C)(?=\p{Lu}|\p{N})/gu;
+const LISTING = /Mise\s+(de\s+départ|actuelle)\s*([\d\u00a0\u202f ]+?)\s*Durée\s*((?:\d+\s*[jdhms]\s*)+)/giu;
 const PRICE_LABEL = /Mise\s+(?:de\s+départ|actuelle)/giu;
+const RARITY = /^(?:UR|SR|PC|L|R|C)$/u;
 
-function findHeader(segment: string): Header | null {
-  const stats = STATS_AT_END.exec(segment);
-  if (!stats || stats.index === undefined) return null;
+function findLineHeader(segment: string): Header | null {
+  const lines = segment.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+
+  for (let index = lines.length - 2; index > 0; index--) {
+    if (!RARITY.test(lines[index])) continue;
+    const first = lines[index - 1].replace(/\s+/gu, " ").normalize("NFC");
+    const second = lines[index + 1].replace(/\s+/gu, " ").normalize("NFC");
+    const firstIsName =
+      first.toLocaleLowerCase("fr-FR") !== "wikimasters" &&
+      !/^vendu\s+par\b/iu.test(first);
+    if (!second || RARITY.test(second) || /^\d[\d\s]*$/u.test(second)) continue;
+    const name = firstIsName ? first : second;
+    return {
+      name,
+      type: lines[index],
+      uncertain: !firstIsName || first !== second,
+    };
+  }
+  return null;
+}
+
+function findConcatenatedHeader(segment: string): Header | null {
+  const stats = /(\d{1,3}(?:[\u00a0\u202f ]\d{3})+|\d+)(\d{1,3}(?:[\u00a0\u202f ]\d{3})+|\d+)\s*$/u.exec(segment);
+  if (!stats) return null;
 
   const beforeStats = segment.slice(0, stats.index).replace(/Possédée\s*$/iu, "");
-  const description = DESCRIPTION.exec(beforeStats);
-  if (!description || description.index === undefined) return null;
+  const description = /coureur\s|coureuse\s|cycliste\s|course\s|\d+(?:e|ème)\s+édition\s/iu.exec(beforeStats);
+  if (!description) return null;
 
   let descriptionStart = description.index;
   const combinedYear = /(\d{4})(?=\d+(?:e|ème)\s+édition\s)/iu.exec(beforeStats);
-  if (combinedYear?.index !== undefined && combinedYear.index < descriptionStart + 4) {
+  if (combinedYear && combinedYear.index < descriptionStart + 4) {
     descriptionStart = combinedYear.index + 4;
   }
 
-  let lastBadge: RegExpExecArray | null = null;
-  BADGE.lastIndex = 0;
-  for (const match of beforeStats.matchAll(BADGE)) {
-    if (match.index < descriptionStart) lastBadge = match;
+  let badge: RegExpExecArray | null = null;
+  for (const match of beforeStats.matchAll(/(?:UR|SR|PC|L|R|C)(?=\p{Lu}|\p{N})/gu)) {
+    if (match.index < descriptionStart) badge = match;
   }
-  if (!lastBadge || lastBadge.index === undefined) return null;
-
-  const name = beforeStats.slice(lastBadge.index + lastBadge[0].length, descriptionStart).trim();
-  if (!name) return null;
-  return {
-    start: lastBadge.index,
-    type: lastBadge[0],
-    name,
-    subtitle: beforeStats.slice(descriptionStart).trim() || null,
-  };
+  if (!badge) return null;
+  const name = beforeStats.slice(badge.index + badge[0].length, descriptionStart).trim();
+  return name ? { name, type: badge[0], uncertain: true } : null;
 }
 
 export function parseMarketplaceText(text: string): {
@@ -51,7 +56,8 @@ export function parseMarketplaceText(text: string): {
   warnings: string[];
 } {
   const matches = Array.from(text.matchAll(LISTING));
-  if (matches.length > 100) {
+  const priceLabelCount = Array.from(text.matchAll(PRICE_LABEL)).length;
+  if (priceLabelCount > 100) {
     return {
       cards: [],
       warnings: ["Plus de 100 annonces détectées. Copiez-les en plusieurs fois."],
@@ -60,8 +66,7 @@ export function parseMarketplaceText(text: string): {
 
   const cards: ParsedCard[] = [];
   const warnings: string[] = [];
-  let previousSellerStart = 0;
-  const priceLabelCount = Array.from(text.matchAll(PRICE_LABEL)).length;
+  let previousEnd = 0;
   if (priceLabelCount > matches.length) {
     warnings.push(
       `${priceLabelCount - matches.length} annonce(s) incomplète(s) n'ont pas pu être analysées.`,
@@ -69,19 +74,17 @@ export function parseMarketplaceText(text: string): {
   }
 
   for (const match of matches) {
-    const segment = text.slice(previousSellerStart, match.index);
-    const header = findHeader(segment);
-
-    if (cards.length > 0) {
-      cards[cards.length - 1].seller = header && !segment.match(PRICE_LABEL)
-        ? segment.slice(0, header.start).trim() || null
-        : null;
-    }
+    const segment = text.slice(previousEnd, match.index);
+    const header =
+      findLineHeader(segment) ??
+      (/^(?:UR|SR|PC|L|R|C)\s*$/mu.test(segment)
+        ? null
+        : findConcatenatedHeader(segment));
 
     if (!header) {
-      warnings.push(
-        `Annonce ${cards.length + 1} : nom ou type non reconnu${cards.length ? " ; vérifiez aussi le vendeur précédent" : ""}.`,
-      );
+      warnings.push(`Annonce ${cards.length + 1} : nom ou rareté non reconnu.`);
+    } else if (header.uncertain) {
+      warnings.push(`Annonce ${cards.length + 1} : vérifiez le nom et la rareté.`);
     }
 
     const price = Number(match[2].replace(/[\s\u00a0\u202f]/gu, ""));
@@ -93,24 +96,17 @@ export function parseMarketplaceText(text: string): {
     cards.push({
       cardName: header?.name ?? "",
       cardType: header?.type ?? null,
-      subtitle: header?.subtitle ?? null,
       currentPrice: current ? validPrice : null,
       startingPrice: current ? null : validPrice,
       remainingTime: match[3].trim().replace(/\s+/gu, " "),
-      seller: null,
-      confidence: "low",
+      confidence: header && !header.uncertain ? "high" : "low",
     });
-    previousSellerStart = match.index + match[0].length;
+    previousEnd = match.index + match[0].length;
   }
 
-  if (cards.length) {
-    const tail = text.slice(previousSellerStart);
-    cards[cards.length - 1].seller = tail.match(PRICE_LABEL)
-      ? null
-      : tail.trim() || null;
-  } else {
+  if (!cards.length) {
     warnings.push(
-      "Aucune annonce reconnue. Copiez le texte du marché en français, avec les mises, durées et vendeurs.",
+      "Aucune annonce reconnue. Copiez le texte du marché en français, avec les mises et les durées.",
     );
   }
 
