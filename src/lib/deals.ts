@@ -17,11 +17,8 @@ function listingPrice(card: Pick<ExtractedCard, "startingPrice" | "currentPrice"
   return price !== null && Number.isFinite(price) && price >= 0 ? price : null;
 }
 
-export function isLegendaryDeal(
-  card: Pick<ExtractedCard, "cardType" | "startingPrice" | "currentPrice">,
-): boolean {
-  const price = listingPrice(card);
-  return normalizeRarity(card.cardType ?? "") === "L" && price !== null && price < 234;
+export function effectiveAveragePrice(rarity: string | null, savedAverage: number | null): number | null {
+  return savedAverage ?? (normalizeRarity(rarity ?? "") === "L" ? 286 : null);
 }
 
 export function expirationAt(pastedAt: number | null, duration: string | null): Date | null {
@@ -55,6 +52,6 @@ export function compareListing(
     price,
     kind: isCurrent ? "actuelle" : "départ",
     discount: (1 - price / average) * 100,
-    good: price * 10 <= average * (isCurrent ? 7 : 8),
+    good: price * 10 <= average * 8,
   };
 }

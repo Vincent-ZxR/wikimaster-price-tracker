@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareListing, expirationAt, isLegendaryDeal, isNightExpiration, priceKey } from "../src/lib/deals.ts";
+import { compareListing, effectiveAveragePrice, expirationAt, isNightExpiration, priceKey } from "../src/lib/deals.ts";
 
 test("starting bids are good deals at or below 20% under the average", () => {
   assert.equal(compareListing({ startingPrice: 800, currentPrice: null }, 1000).good, true);
@@ -8,10 +8,10 @@ test("starting bids are good deals at or below 20% under the average", () => {
   assert.equal(compareListing({ startingPrice: 799, currentPrice: null }, 1000).good, true);
 });
 
-test("current bids are good deals at or below 30% under the average", () => {
-  assert.equal(compareListing({ startingPrice: null, currentPrice: 700 }, 1000).good, true);
-  assert.equal(compareListing({ startingPrice: null, currentPrice: 701 }, 1000).good, false);
-  assert.equal(compareListing({ startingPrice: null, currentPrice: 699 }, 1000).good, true);
+test("current bids use the same 20% threshold as starting bids", () => {
+  assert.equal(compareListing({ startingPrice: null, currentPrice: 800 }, 1000).good, true);
+  assert.equal(compareListing({ startingPrice: null, currentPrice: 801 }, 1000).good, false);
+  assert.equal(compareListing({ startingPrice: null, currentPrice: 799 }, 1000).good, true);
 });
 
 test("missing or invalid references never result in a deal", () => {
@@ -26,7 +26,7 @@ test("the same reference applies to multiple listings but not another rarity", (
   const prices = new Map([[priceKey("Carte", "UR"), 1000]]);
   const reference = prices.get(priceKey(" CARTE ", "ur")) ?? null;
   assert.equal(compareListing({ startingPrice: 800, currentPrice: null }, reference).good, true);
-  assert.equal(compareListing({ startingPrice: null, currentPrice: 701 }, reference).good, false);
+  assert.equal(compareListing({ startingPrice: null, currentPrice: 801 }, reference).good, false);
   assert.equal(prices.get(priceKey("Carte", "SR")), undefined);
 });
 
@@ -36,13 +36,18 @@ test("reference keys ignore case and extra whitespace but distinguish rarity", (
   assert.equal(priceKey("Pogac\u030car", "L"), priceKey("Pogačar", "l"));
 });
 
-test("legendary special price is strictly below 234 and uses current bid first", () => {
-  assert.equal(isLegendaryDeal({ cardType: " l ", startingPrice: 233, currentPrice: null }), true);
-  assert.equal(isLegendaryDeal({ cardType: "L", startingPrice: 234, currentPrice: null }), false);
-  assert.equal(isLegendaryDeal({ cardType: "UR", startingPrice: 233, currentPrice: null }), false);
-  assert.equal(isLegendaryDeal({ cardType: "L", startingPrice: 1, currentPrice: 234 }), false);
-  assert.equal(isLegendaryDeal({ cardType: "L", startingPrice: null, currentPrice: 0 }), true);
-  assert.equal(isLegendaryDeal({ cardType: "L", startingPrice: null, currentPrice: null }), false);
+test("legendary default is 286, unless a personal average exists", () => {
+  assert.equal(effectiveAveragePrice(" l ", null), 286);
+  assert.equal(effectiveAveragePrice("UR", null), null);
+  assert.equal(effectiveAveragePrice(null, null), null);
+  assert.equal(effectiveAveragePrice("L", 500), 500);
+  assert.equal(effectiveAveragePrice("L", 0), 0);
+  assert.equal(compareListing({ startingPrice: 228, currentPrice: null }, effectiveAveragePrice("L", null)).good, true);
+  assert.equal(compareListing({ startingPrice: 229, currentPrice: null }, effectiveAveragePrice("L", null)).good, false);
+  assert.equal(compareListing({ startingPrice: null, currentPrice: 228 }, effectiveAveragePrice("L", null)).good, true);
+  assert.equal(compareListing({ startingPrice: null, currentPrice: 229 }, effectiveAveragePrice("L", null)).good, false);
+  assert.equal(compareListing({ startingPrice: 233, currentPrice: null }, effectiveAveragePrice("L", null)).good, false);
+  assert.equal(compareListing({ startingPrice: 233, currentPrice: null }, effectiveAveragePrice("L", 500)).good, true);
 });
 
 test("night expiration uses the paste time and local time across midnight and days", () => {

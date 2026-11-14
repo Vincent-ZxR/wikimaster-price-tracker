@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { parseMarketplaceText } from "@/lib/parse-marketplace";
-import { compareListing, expirationAt, isLegendaryDeal, isNightExpiration, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
+import { compareListing, effectiveAveragePrice, expirationAt, isNightExpiration, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
 import { compareSortValues, nextSort, type Sort } from "@/lib/sort";
 import type { AveragePrice, ExtractedCard } from "@/lib/types";
 
@@ -17,10 +17,9 @@ type PriceColumn = "name" | "rarity" | "average";
 
 type ListingRow = {
   card: ExtractedCard;
-  reference: AveragePrice | undefined;
+  average: number | null;
   expiration: Date | null;
   comparison: ReturnType<typeof compareListing>;
-  legendary: boolean;
   night: boolean;
 };
 
@@ -30,9 +29,9 @@ function listingSortValue(row: ListingRow, column: ListingColumn): string | numb
     case "rarity": return normalizeRarity(row.card.cardType ?? "") || null;
     case "price": return row.card[row.card.bidKind];
     case "kind": return row.card.bidKind === "currentPrice" ? "Actuelle" : "Départ";
-    case "average": return row.reference?.average_price ?? null;
+    case "average": return row.average;
     case "comparison": return row.comparison ? -row.comparison.discount : null;
-    case "alerts": return (Number(row.legendary) * 2 + Number(row.night)) || null;
+    case "alerts": return row.night ? 1 : null;
     case "duration": return expirationAt(0, row.card.remainingTime)?.getTime() ?? null;
   }
 }
@@ -214,6 +213,7 @@ export default function Home() {
   const prices = currentState?.status === "ready" ? currentState.prices : [];
   const priceMap = new Map(prices.map((price) => [priceKey(price.card_name, price.card_type), price]));
   const loadingPrices = Boolean(session && !currentState);
+  const averagesAvailable = authReady && (!session || currentState?.status === "ready");
 
   async function savePrice(name: string, rarity: string) {
     if (!session || currentState?.status !== "ready" || savingKey) return;
@@ -257,9 +257,11 @@ export default function Home() {
     const key = JSON.stringify([session?.user.id, priceKey(name, rarity)]);
     const saved = priceMap.get(priceKey(name, rarity));
     const draft = drafts[key];
-    const value = draft ?? (saved ? String(saved.average_price) : "");
+    const average = averagesAvailable ? effectiveAveragePrice(rarity, saved?.average_price ?? null) : null;
+    const value = draft ?? (average === null ? "" : String(average));
     const validIdentity = Boolean(normalizeName(name)) && /^(?:L|UR|SR|R|PC|C)$/u.test(normalizeRarity(rarity));
     return (
+      <div>
       <div className="price-editor">
         <label className="sr-only" htmlFor={id}>Prix moyen de {name || "la carte"} {rarity}</label>
         <input id={id} className="table-input number-input" type="number" min="1" max="1000000000" step="1"
@@ -271,24 +273,25 @@ export default function Home() {
           {savingKey === key ? "…" : "OK"}
         </button>
       </div>
+      {!saved && average !== null && <span className="default-price-note">Par défaut (non enregistré)</span>}
+      </div>
     );
   }
 
   const rows: ListingRow[] = cards.map((card) => {
     const reference = priceMap.get(priceKey(card.cardName, card.cardType ?? ""));
+    const average = averagesAvailable ? effectiveAveragePrice(card.cardType, reference?.average_price ?? null) : null;
     const expiration = expirationAt(cardsPastedAt, card.remainingTime);
     return {
-      card, reference, expiration,
-      comparison: compareListing(card, reference?.average_price ?? null),
-      legendary: isLegendaryDeal(card),
+      card, average, expiration,
+      comparison: compareListing(card, average),
       night: isNightExpiration(expiration),
     };
   });
-  const dealCount = rows.filter((row) => row.legendary || row.comparison?.good).length;
+  const dealCount = rows.filter((row) => row.comparison?.good).length;
   const sortedRows = [...rows].sort((a, b) => listingSort
     ? compareSortValues(listingSortValue(a, listingSort.column), listingSortValue(b, listingSort.column), listingSort.direction)
-    : Number(b.legendary) - Number(a.legendary) ||
-      Number(Boolean(b.comparison?.good)) - Number(Boolean(a.comparison?.good)));
+    : Number(Boolean(b.comparison?.good)) - Number(Boolean(a.comparison?.good)));
   const sortedPrices = [...prices].sort((a, b) => {
     const column = priceSort?.column ?? "name";
     const value = (price: AveragePrice) => column === "name" ? price.card_name
@@ -355,7 +358,7 @@ export default function Home() {
               <SortHeader label="Durée au collage" column="duration" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <th><span className="sr-only">Supprimer</span></th>
             </tr></thead>
-            <tbody>{sortedRows.map(({ card, reference, comparison, legendary, expiration, night }) => <tr key={card.id}>
+            <tbody>{sortedRows.map(({ card, average, comparison, expiration, night }) => <tr key={card.id}>
               <td><div className="name-cell"><label className="sr-only" htmlFor={`name-${card.id}`}>Nom de la carte</label><input id={`name-${card.id}`} className="table-input name-input" value={card.cardName} onChange={(event) => updateCard(card.id, "cardName", event.target.value)} /><CopyNameButton name={card.cardName} /></div></td>
               <td><label className="sr-only" htmlFor={`type-${card.id}`}>Rareté</label><input id={`type-${card.id}`} className={`table-input type-input rarity-badge ${rarityClass(card.cardType)}`} value={card.cardType ?? ""} onChange={(event) => updateCard(card.id, "cardType", event.target.value)} /></td>
               <td><label className="sr-only" htmlFor={`bid-${card.id}`}>Prix de la mise</label><input id={`bid-${card.id}`} className="table-input number-input" type="number" min="0" step="1" value={card[card.bidKind] ?? ""} onChange={(event) => updateCard(card.id, card.bidKind, event.target.value)} /></td>
@@ -363,15 +366,15 @@ export default function Home() {
                 <option value="startingPrice">Départ</option><option value="currentPrice">Actuelle</option>
               </select></td>
               <td>{priceEditor(card.cardName, card.cardType ?? "", `average-${card.id}`)}</td>
-              <td>{comparison ? <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span> : <span className="muted">{reference ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
-              <td><div className="flags">{legendary && <span className="flag legendary-flag">L &lt; 234</span>}{night && <span className="flag night-flag">Expire entre 3h et 7h</span>}{!legendary && !night && <span className="muted">—</span>}</div></td>
+              <td>{comparison ? <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span> : <span className="muted">{!averagesAvailable ? "Prix indisponibles" : average !== null ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
+              <td><div className="flags">{night ? <span className="flag night-flag">Expire entre 3h et 7h</span> : <span className="muted">—</span>}</div></td>
               <td><label className="sr-only" htmlFor={`time-${card.id}`}>Durée au collage</label><input id={`time-${card.id}`} className="table-input time-input" value={card.remainingTime ?? ""} onChange={(event) => updateCard(card.id, "remainingTime", event.target.value)} />
                 {expiration && <span className="expiration">Expire le {expiration.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>}
                 {cardsPastedAt !== null && !expiration && <span className="expiration">Durée invalide</span>}</td>
               <td><button className="remove-row" type="button" aria-label={`Retirer ${card.cardName || "l’annonce"}`} onClick={() => setCards((current) => current.filter((entry) => entry.id !== card.id))}>×</button></td>
             </tr>)}</tbody>
           </table></div>}
-        <p className="footnote">Seuils : départ ≤ −20 % ; actuelle ≤ −30 % ; légendaire &lt; 234. Cliquez sur un en-tête pour trier (trois clics pour revenir au tri des bonnes affaires). Expiration estimée selon l’heure du collage et le fuseau local, de 3h inclus à 7h exclu. Les annonces restent temporaires.</p>
+        <p className="footnote">Bonne affaire : prix ≤ −20 % de la moyenne. Légendaire : moyenne de 286 par défaut, remplacée par votre prix enregistré. Cliquez sur un en-tête pour trier (trois clics pour revenir au tri des bonnes affaires). Expiration estimée selon l’heure du collage et le fuseau local, de 3h inclus à 7h exclu. Les annonces restent temporaires.</p>
         {cards.length > 0 && cardsPastedAt === null && <p className="notice">Heure du collage inconnue : collez à nouveau le texte pour calculer les expirations.</p>}
       </section>
 
