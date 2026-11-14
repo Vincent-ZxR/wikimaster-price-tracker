@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { parseMarketplaceText } from "@/lib/parse-marketplace";
@@ -69,7 +69,6 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"annonces" | "prices">("annonces");
   const [listingSort, setListingSort] = useState<Sort<ListingColumn> | null>(null);
   const [priceSort, setPriceSort] = useState<Sort<PriceColumn> | null>(null);
-  const pendingPaste = useRef<number | null>(null);
   const [textPastedAt, setTextPastedAt] = useState<number | null>(null);
   const [cardsPastedAt, setCardsPastedAt] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
@@ -290,12 +289,35 @@ export default function Home() {
       </nav>
 
       {activeTab === "annonces" && <>
+      <section className="import-section" aria-labelledby="import-heading">
+        <div className="section-heading"><h2 id="import-heading">Importer des annonces</h2></div>
+        <label className="sr-only" htmlFor="market-text">Texte du marché WikiMasters</label>
+        <div className="import-controls">
+          <textarea id="market-text" value={text} onPaste={(event) => {
+            event.preventDefault();
+            const pastedText = event.clipboardData.getData("text/plain");
+            if (!pastedText.trim()) {
+              setNotice("Collez du texte provenant du marché WikiMasters.");
+              return;
+            }
+            setText(pastedText);
+            setTextPastedAt(Date.now());
+            setNotice("");
+          }} onChange={(event) => {
+            setText(event.target.value);
+            setTextPastedAt(null);
+          }} placeholder="Collez ici le texte copié du marché WikiMasters…" />
+          <button className="primary-button" disabled={!text.trim()} onClick={handleAnalyze} type="button">Analyser</button>
+        </div>
+        {notice && <p className="notice" role="status">{notice}</p>}
+      </section>
+
       <section className="list-section" aria-labelledby="list-heading">
         <div className="section-heading">
           <div><h1 id="list-heading">Annonces</h1><p>{listingSort ? "Tri par colonne activé." : "Les bonnes affaires apparaissent en premier."}</p></div>
           <div className="counts"><span>{cards.length} annonce(s)</span><span className="deal-count">{dealCount} bonne(s) affaire(s)</span></div>
         </div>
-        {cards.length === 0 ? <div className="empty-state">Aucune annonce pour le moment. Collez le texte du marché ci-dessous.</div> :
+        {cards.length === 0 ? <div className="empty-state">Aucune annonce pour le moment. Collez le texte du marché ci-dessus.</div> :
           <div className="table-scroll"><table className="review-table">
             <thead><tr>
               <SortHeader label="Carte" column="name" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
@@ -328,19 +350,6 @@ export default function Home() {
         {cards.length > 0 && cardsPastedAt === null && <p className="notice">Heure du collage inconnue : collez à nouveau le texte pour calculer les expirations.</p>}
       </section>
 
-      <section className="import-section" aria-labelledby="import-heading">
-        <div className="section-heading"><h2 id="import-heading">Importer des annonces</h2></div>
-        <label className="sr-only" htmlFor="market-text">Texte du marché WikiMasters</label>
-        <div className="import-controls">
-          <textarea id="market-text" value={text} onPaste={() => { pendingPaste.current = Date.now(); }} onChange={(event) => {
-            setText(event.target.value);
-            setTextPastedAt(pendingPaste.current);
-            pendingPaste.current = null;
-          }} placeholder="Collez ici le texte copié du marché WikiMasters…" />
-          <button className="primary-button" disabled={!text.trim()} onClick={handleAnalyze} type="button">Analyser</button>
-        </div>
-        {notice && <p className="notice" role="status">{notice}</p>}
-      </section>
       </>}
 
       {activeTab === "prices" && <section className="saved-section" aria-labelledby="saved-heading">

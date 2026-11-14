@@ -95,13 +95,17 @@ test("still supports the previously supplied concatenated format", () => {
   assert.equal(warnings.length, 2);
 });
 
-test("reports incomplete listings and rejects batches over the database limit", () => {
+test("reports incomplete listings and accepts up to 1000 announcements", () => {
   const listing =
     "Jacques Anquetil\nUR\nJacques Anquetil\nMise de départ\n10\nDurée\n5h 55m\n";
   const incomplete = parseMarketplaceText(listing + "Mise actuelle\n20\nDurée inconnue");
   assert.equal(incomplete.cards.length, 1);
   assert.match(incomplete.warnings.join(" "), /incomplète/);
-  const tooMany = parseMarketplaceText(listing.repeat(101));
+  const maximum = parseMarketplaceText(listing.repeat(1000));
+  assert.equal(maximum.cards.length, 1000);
+  assert.equal(maximum.cards[999].cardName, "Jacques Anquetil");
+  assert.deepEqual(maximum.warnings, []);
+  const tooMany = parseMarketplaceText(listing.repeat(1001));
   assert.equal(tooMany.cards.length, 0);
-  assert.match(tooMany.warnings[0], /100/);
+  assert.match(tooMany.warnings[0], /1 000/);
 });

@@ -56,10 +56,10 @@ export function parseMarketplaceText(text: string): {
 } {
   const matches = Array.from(text.matchAll(LISTING));
   const priceLabelCount = Array.from(text.matchAll(PRICE_LABEL)).length;
-  if (priceLabelCount > 100) {
+  if (priceLabelCount > 1000) {
     return {
       cards: [],
-      warnings: ["Plus de 100 annonces détectées. Copiez-les en plusieurs fois."],
+      warnings: ["Plus de 1 000 annonces détectées. Copiez-les en plusieurs fois."],
     };
   }
 
