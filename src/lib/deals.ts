@@ -1,4 +1,4 @@
-import type { ExtractedCard } from "./types";
+import type { ExtractedCard, PriceSummary } from "./types";
 
 export function normalizeName(name: string): string {
   return name.trim().replace(/\s+/gu, " ").normalize("NFC").toLocaleLowerCase("fr-FR");
@@ -12,6 +12,22 @@ export function priceKey(name: string, rarity: string): string {
   return JSON.stringify([normalizeName(name), normalizeRarity(rarity)]);
 }
 
+export function priceObservations(
+  cards: Pick<ExtractedCard, "cardName" | "cardType" | "currentPrice" | "confidence">[],
+  captureHash: string,
+) {
+  return cards.flatMap((card, position) => {
+    const nameKey = normalizeName(card.cardName);
+    const rarity = normalizeRarity(card.cardType ?? "");
+    const price = card.currentPrice;
+    return card.confidence === "high" && nameKey.length > 0 && nameKey.length <= 200 &&
+      /^(?:L|UR|SR|R|PC|C)$/u.test(rarity) && price !== null && Number.isSafeInteger(price) &&
+      price >= 1 && price <= 1_000_000_000
+      ? [{ capture_hash: captureHash, position, name_key: nameKey, card_type: rarity, current_price: price }]
+      : [];
+  });
+}
+
 function listingPrice(card: Pick<ExtractedCard, "startingPrice" | "currentPrice">): number | null {
   const price = card.currentPrice !== null ? card.currentPrice : card.startingPrice;
   return price !== null && Number.isFinite(price) && price >= 0 ? price : null;
@@ -19,6 +35,20 @@ function listingPrice(card: Pick<ExtractedCard, "startingPrice" | "currentPrice"
 
 export function effectiveAveragePrice(rarity: string | null, savedAverage: number | null): number | null {
   return savedAverage ?? (normalizeRarity(rarity ?? "") === "L" ? 286 : null);
+}
+
+export function estimatePrice(rarity: string | null, personal: number | null, summary: PriceSummary | undefined) {
+  const market = summary && summary.sample_count >= 5 ? summary.upper_quartile : null;
+  const value = personal !== null
+    ? market === null ? personal : Math.round(personal * 0.75 + market * 0.25)
+    : market === null ? effectiveAveragePrice(rarity, null) : Math.round(market);
+  const source = personal !== null
+    ? market === null ? "personnel" : "personnel + observations"
+    : market === null ? value === null ? null : "défaut légendaire" : "observations";
+  const quality = market === null ? null
+    : summary && summary.sample_count >= 20 && summary.upper_quartile <= summary.lower_quartile * 2
+      ? "modérée" : "faible";
+  return { value, source, quality };
 }
 
 export function expirationAt(pastedAt: number | null, duration: string | null): Date | null {

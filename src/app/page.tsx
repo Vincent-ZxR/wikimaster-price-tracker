@@ -4,20 +4,24 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { parseMarketplaceText } from "@/lib/parse-marketplace";
-import { compareListing, effectiveAveragePrice, expirationAt, isNightExpiration, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
+import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isNightExpiration, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
 import { compareSortValues, nextSort, type Sort } from "@/lib/sort";
-import type { AveragePrice, ExtractedCard } from "@/lib/types";
+import { PriceHistory } from "./price-history";
+import type { AveragePrice, ExtractedCard, PriceSummary, TrackedPrice } from "@/lib/types";
 
 type PricesState =
   | { userId: string; token: string; status: "ready"; prices: AveragePrice[] }
   | { userId: string; token: string; status: "error"; message: string };
 
-type ListingColumn = "name" | "rarity" | "price" | "kind" | "average" | "comparison" | "alerts" | "duration";
-type PriceColumn = "name" | "rarity" | "average";
+type ListingColumn = "name" | "rarity" | "price" | "kind" | "personal" | "average" | "comparison" | "alerts" | "duration";
+type PriceColumn = "name" | "rarity" | "personal" | "reference";
 
 type ListingRow = {
   card: ExtractedCard;
   average: number | null;
+  personal: number | null;
+  summary: PriceSummary | undefined;
+  estimate: ReturnType<typeof estimatePrice>;
   expiration: Date | null;
   comparison: ReturnType<typeof compareListing>;
   night: boolean;
@@ -29,6 +33,7 @@ function listingSortValue(row: ListingRow, column: ListingColumn): string | numb
     case "rarity": return normalizeRarity(row.card.cardType ?? "") || null;
     case "price": return row.card[row.card.bidKind];
     case "kind": return row.card.bidKind === "currentPrice" ? "Actuelle" : "Départ";
+    case "personal": return row.personal;
     case "average": return row.average;
     case "comparison": return row.comparison ? -row.comparison.discount : null;
     case "alerts": return row.night ? 1 : null;
@@ -100,6 +105,19 @@ export default function Home() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [priceMessage, setPriceMessage] = useState("");
+  const [historyMessage, setHistoryMessage] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [historyRevision, setHistoryRevision] = useState(0);
+  const [historyState, setHistoryState] = useState<{
+    userId: string; token: string; query: string; revision: number;
+    summaries: PriceSummary[]; error: string | null;
+  } | null>(null);
+  const [trackedState, setTrackedState] = useState<{
+    userId: string; token: string; revision: number; retry: number;
+    tracked: TrackedPrice[]; error: string | null;
+  } | null>(null);
+  const [trackingRetry, setTrackingRetry] = useState(0);
+  const [selectedCard, setSelectedCard] = useState<{ userId: string; name: string; rarity: string } | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -176,7 +194,7 @@ export default function Home() {
     }
   }
 
-  function handleAnalyze() {
+  async function handleAnalyze() {
     const result = parseMarketplaceText(text);
     setCards(result.cards.map((card) => ({ ...card, id: crypto.randomUUID() })));
     setCardsPastedAt(textPastedAt);
@@ -184,6 +202,28 @@ export default function Home() {
       result.cards.length ? `${result.cards.length} annonce(s) détectée(s).` : "",
       ...result.warnings,
     ].filter(Boolean).join(" "));
+    setHistoryMessage("");
+    if (!result.cards.length) return;
+    if (!session) {
+      setHistoryMessage("Connectez-vous pour enregistrer les mises actuelles dans l’historique partagé.");
+      return;
+    }
+    setRecording(true);
+    try {
+      const response = await fetch("/api/price-observations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: "record", text }),
+      });
+      const saved: { recorded?: number; error?: string } = await response.json();
+      if (!response.ok || saved.recorded === undefined) throw new Error(saved.error || "Impossible d’enregistrer les observations.");
+      setHistoryMessage(`${saved.recorded} nouvelle(s) mise(s) actuelle(s) ajoutée(s) à l’historique partagé. Les annonces incertaines, les mises de départ et les imports identiques sont exclus.`);
+      setHistoryRevision((revision) => revision + 1);
+    } catch (error) {
+      setHistoryMessage(error instanceof Error ? error.message : "Impossible d’enregistrer les observations.");
+    } finally {
+      setRecording(false);
+    }
   }
 
   function updateCard(id: string, field: "cardName" | "cardType" | "currentPrice" | "startingPrice" | "remainingTime", value: string) {
@@ -213,7 +253,59 @@ export default function Home() {
   const prices = currentState?.status === "ready" ? currentState.prices : [];
   const priceMap = new Map(prices.map((price) => [priceKey(price.card_name, price.card_type), price]));
   const loadingPrices = Boolean(session && !currentState);
-  const averagesAvailable = authReady && (!session || currentState?.status === "ready");
+  const historyQuery = JSON.stringify(cards.map((card) => ({ name: card.cardName, rarity: card.cardType ?? "" })));
+  useEffect(() => {
+    if (!session || historyQuery === "[]") return;
+    let active = true;
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await fetch("/api/price-observations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ action: "lookup", keys: JSON.parse(historyQuery) }),
+          });
+          const result: { summaries?: PriceSummary[]; error?: string } = await response.json();
+          if (!response.ok || !result.summaries) throw new Error(result.error || "Impossible de charger l’historique des prix.");
+          if (active) setHistoryState({ userId: session.user.id, token: session.access_token, query: historyQuery, revision: historyRevision, summaries: result.summaries, error: null });
+        } catch (error) {
+          if (active) setHistoryState({
+            userId: session.user.id, token: session.access_token, query: historyQuery, revision: historyRevision, summaries: [],
+            error: error instanceof Error ? error.message : "Impossible de charger l’historique des prix.",
+          });
+        }
+      })();
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [session, historyQuery, historyRevision]);
+  const currentHistory = session && historyState?.userId === session.user.id && historyState.token === session.access_token &&
+    historyState.query === historyQuery && historyState.revision === historyRevision ? historyState : null;
+  const summaries = new Map((currentHistory?.summaries ?? []).map((summary) => [priceKey(summary.name_key, summary.card_type), summary]));
+  const averagesAvailable = authReady && (!session || (currentState?.status === "ready" && (historyQuery === "[]" || currentHistory !== null)));
+  useEffect(() => {
+    if (!session || activeTab !== "prices") return;
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/price-observations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ action: "tracking" }),
+        });
+        const result: { tracked?: TrackedPrice[]; error?: string } = await response.json();
+        if (!response.ok || !result.tracked) throw new Error(result.error || "Impossible de charger les cartes suivies.");
+        if (active) setTrackedState({ userId: session.user.id, token: session.access_token, revision: historyRevision, retry: trackingRetry, tracked: result.tracked, error: null });
+      } catch (error) {
+        if (active) setTrackedState({
+          userId: session.user.id, token: session.access_token, revision: historyRevision, retry: trackingRetry, tracked: [],
+          error: error instanceof Error ? error.message : "Impossible de charger les cartes suivies.",
+        });
+      }
+    })();
+    return () => { active = false; };
+  }, [session, activeTab, historyRevision, trackingRetry]);
+  const currentTracking = session && trackedState?.userId === session.user.id && trackedState.token === session.access_token &&
+    trackedState.revision === historyRevision && trackedState.retry === trackingRetry ? trackedState : null;
 
   async function savePrice(name: string, rarity: string) {
     if (!session || currentState?.status !== "ready" || savingKey) return;
@@ -246,6 +338,7 @@ export default function Home() {
         return next;
       });
       setPriceMessage(`Prix moyen de ${saved.card_name} (${saved.card_type}) enregistré.`);
+      setHistoryRevision((revision) => revision + 1);
     } catch (error) {
       setPriceMessage(error instanceof Error ? error.message : "Impossible d’enregistrer le prix moyen.");
     } finally {
@@ -257,7 +350,7 @@ export default function Home() {
     const key = JSON.stringify([session?.user.id, priceKey(name, rarity)]);
     const saved = priceMap.get(priceKey(name, rarity));
     const draft = drafts[key];
-    const average = averagesAvailable ? effectiveAveragePrice(rarity, saved?.average_price ?? null) : null;
+    const average = authReady && (!session || currentState?.status === "ready") ? effectiveAveragePrice(rarity, saved?.average_price ?? null) : null;
     const value = draft ?? (average === null ? "" : String(average));
     const validIdentity = Boolean(normalizeName(name)) && /^(?:L|UR|SR|R|PC|C)$/u.test(normalizeRarity(rarity));
     return (
@@ -280,10 +373,12 @@ export default function Home() {
 
   const rows: ListingRow[] = cards.map((card) => {
     const reference = priceMap.get(priceKey(card.cardName, card.cardType ?? ""));
-    const average = averagesAvailable ? effectiveAveragePrice(card.cardType, reference?.average_price ?? null) : null;
+    const summary = summaries.get(priceKey(card.cardName, card.cardType ?? ""));
+    const estimate = estimatePrice(card.cardType, reference?.average_price ?? null, summary);
+    const average = averagesAvailable ? estimate.value : null;
     const expiration = expirationAt(cardsPastedAt, card.remainingTime);
     return {
-      card, average, expiration,
+      card, average, personal: reference?.average_price ?? null, summary, estimate, expiration,
       comparison: compareListing(card, average),
       night: isNightExpiration(expiration),
     };
@@ -292,12 +387,31 @@ export default function Home() {
   const sortedRows = [...rows].sort((a, b) => listingSort
     ? compareSortValues(listingSortValue(a, listingSort.column), listingSortValue(b, listingSort.column), listingSort.direction)
     : Number(Boolean(b.comparison?.good)) - Number(Boolean(a.comparison?.good)));
-  const sortedPrices = [...prices].sort((a, b) => {
+  const trackedCards = new Map<string, { name: string; rarity: string; personal: number | null; summary?: PriceSummary }>();
+  for (const entry of currentTracking?.tracked ?? []) {
+    const summary = entry.lower_quartile === null || entry.upper_quartile === null ? undefined : {
+      ...entry, lower_quartile: entry.lower_quartile, upper_quartile: entry.upper_quartile,
+    };
+    trackedCards.set(priceKey(entry.name_key, entry.card_type), {
+      name: entry.name_key, rarity: entry.card_type, personal: null, summary,
+    });
+  }
+  for (const price of prices) {
+    const key = priceKey(price.card_name, price.card_type);
+    trackedCards.set(key, {
+      name: price.card_name, rarity: price.card_type, personal: price.average_price,
+      summary: trackedCards.get(key)?.summary,
+    });
+  }
+  const sortedPrices = [...trackedCards.values()].sort((a, b) => {
     const column = priceSort?.column ?? "name";
-    const value = (price: AveragePrice) => column === "name" ? price.card_name
-      : column === "rarity" ? price.card_type : price.average_price;
+    const value = (price: typeof a) => column === "name" ? price.name
+      : column === "rarity" ? price.rarity
+      : column === "personal" ? price.personal
+      : currentTracking && !currentTracking.error ? estimatePrice(price.rarity, price.personal, price.summary).value : null;
     return compareSortValues(value(a), value(b), priceSort?.direction ?? "ascending");
   });
+  const selected = session && selectedCard?.userId === session.user.id ? selectedCard : null;
 
   return (
     <main className="app-shell">
@@ -313,7 +427,7 @@ export default function Home() {
 
       <nav className="tabs" aria-label="Sections">
         <button type="button" aria-pressed={activeTab === "annonces"} onClick={() => setActiveTab("annonces")}>Annonces</button>
-        <button type="button" aria-pressed={activeTab === "prices"} onClick={() => setActiveTab("prices")}>Mes prix moyens</button>
+        <button type="button" aria-pressed={activeTab === "prices"} onClick={() => setActiveTab("prices")}>Suivi de prix</button>
       </nav>
 
       {activeTab === "annonces" && <>
@@ -335,9 +449,10 @@ export default function Home() {
             setText(event.target.value);
             setTextPastedAt(null);
           }} placeholder="Collez ici le texte copié du marché WikiMasters…" />
-          <button className="primary-button" disabled={!text.trim()} onClick={handleAnalyze} type="button">Analyser</button>
+          <button className="primary-button" disabled={!text.trim() || recording} onClick={() => void handleAnalyze()} type="button">Analyser</button>
         </div>
         {notice && <p className="notice" role="status">{notice}</p>}
+        {historyMessage && <p className="notice" role="status">{historyMessage}</p>}
       </section>
 
       <section className="list-section" aria-labelledby="list-heading">
@@ -352,13 +467,14 @@ export default function Home() {
               <SortHeader label="Rareté" column="rarity" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Prix" column="price" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Type de mise" column="kind" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
-              <SortHeader label="Prix moyen" column="average" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
+              <SortHeader label="Prix moyen personnel" column="personal" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
+              <SortHeader label="Prix de référence" column="average" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Comparaison" column="comparison" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Alertes" column="alerts" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Durée au collage" column="duration" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <th><span className="sr-only">Supprimer</span></th>
             </tr></thead>
-            <tbody>{sortedRows.map(({ card, average, comparison, expiration, night }) => <tr key={card.id}>
+            <tbody>{sortedRows.map(({ card, average, estimate, summary, comparison, expiration, night }) => <tr key={card.id}>
               <td><div className="name-cell"><label className="sr-only" htmlFor={`name-${card.id}`}>Nom de la carte</label><input id={`name-${card.id}`} className="table-input name-input" value={card.cardName} onChange={(event) => updateCard(card.id, "cardName", event.target.value)} /><CopyNameButton name={card.cardName} /></div></td>
               <td><label className="sr-only" htmlFor={`type-${card.id}`}>Rareté</label><input id={`type-${card.id}`} className={`table-input type-input rarity-badge ${rarityClass(card.cardType)}`} value={card.cardType ?? ""} onChange={(event) => updateCard(card.id, "cardType", event.target.value)} /></td>
               <td><label className="sr-only" htmlFor={`bid-${card.id}`}>Prix de la mise</label><input id={`bid-${card.id}`} className="table-input number-input" type="number" min="0" step="1" value={card[card.bidKind] ?? ""} onChange={(event) => updateCard(card.id, card.bidKind, event.target.value)} /></td>
@@ -366,6 +482,8 @@ export default function Home() {
                 <option value="startingPrice">Départ</option><option value="currentPrice">Actuelle</option>
               </select></td>
               <td>{priceEditor(card.cardName, card.cardType ?? "", `average-${card.id}`)}</td>
+              <td>{average !== null ? <><strong>{average.toLocaleString("fr-FR")}</strong><span className="default-price-note">{estimate.source}{estimate.quality ? ` · fiabilité indicative ${estimate.quality}` : ""}</span></> : <span className="muted">{averagesAvailable ? "Estimation indisponible" : "Chargement…"}</span>}
+                {summary && <span className="default-price-note">{summary.sample_count} observation(s) récentes{summary.sample_count < 5 ? " · 5 pour estimer les mises" : ""}</span>}</td>
               <td>{comparison ? <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span> : <span className="muted">{!averagesAvailable ? "Prix indisponibles" : average !== null ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
               <td><div className="flags">{night ? <span className="flag night-flag">Expire entre 3h et 7h</span> : <span className="muted">—</span>}</div></td>
               <td><label className="sr-only" htmlFor={`time-${card.id}`}>Durée au collage</label><input id={`time-${card.id}`} className="table-input time-input" value={card.remainingTime ?? ""} onChange={(event) => updateCard(card.id, "remainingTime", event.target.value)} />
@@ -374,31 +492,56 @@ export default function Home() {
               <td><button className="remove-row" type="button" aria-label={`Retirer ${card.cardName || "l’annonce"}`} onClick={() => setCards((current) => current.filter((entry) => entry.id !== card.id))}>×</button></td>
             </tr>)}</tbody>
           </table></div>}
-        <p className="footnote">Bonne affaire : prix ≤ −20 % de la moyenne. Légendaire : moyenne de 286 par défaut, remplacée par votre prix enregistré. Cliquez sur un en-tête pour trier (trois clics pour revenir au tri des bonnes affaires). Expiration estimée selon l’heure du collage et le fuseau local, de 3h inclus à 7h exclu. Les annonces restent temporaires.</p>
+        <p className="footnote">Bonne affaire : prix ≤ −20 % du prix de référence, indicatif et non garanti. Les mises sont des enchères en cours, pas des prix de vente. La fiabilité dépend du nombre et de la dispersion des observations, sans garantie statistique. Légendaire : 286 par défaut en l’absence de données. Expiration estimée selon l’heure du collage et le fuseau local. Les annonces restent temporaires.</p>
         {cards.length > 0 && cardsPastedAt === null && <p className="notice">Heure du collage inconnue : collez à nouveau le texte pour calculer les expirations.</p>}
       </section>
 
       </>}
 
       {activeTab === "prices" && <section className="saved-section" aria-labelledby="saved-heading">
-        <div className="section-heading"><h1 id="saved-heading">Mes prix moyens</h1>{currentState?.status === "ready" && <span className="muted">{prices.length} référence(s)</span>}</div>
-        {!session && <div className="empty-state">Connectez-vous pour consulter vos prix moyens.</div>}
-        {session && currentState?.status === "ready" && (prices.length === 0 ? <div className="empty-state">Renseignez un prix moyen sur une annonce pour le retrouver ici.</div> :
+        <div className="section-heading"><div><h1 id="saved-heading">Suivi de prix</h1><p>L’historique est disponible dès la première mise actuelle enregistrée.</p></div>{currentState?.status === "ready" && currentTracking && !currentTracking.error && <span className="muted">{sortedPrices.length} carte(s)</span>}</div>
+        {!session && <div className="empty-state">Connectez-vous pour consulter le suivi de prix.</div>}
+        {session && !currentTracking && <p className="notice" role="status">Chargement des cartes suivies…</p>}
+        {currentTracking?.error && <p className="notice error" role="alert">{currentTracking.error}{" "}
+          <button type="button" className="text-button" onClick={() => setTrackingRetry((value) => value + 1)}>Réessayer</button></p>}
+        {session && currentState?.status === "ready" && currentTracking && (sortedPrices.length === 0 ? <div className="empty-state">{currentTracking.error ? "Les cartes suivies sont indisponibles." : "Aucune carte suivie. Analysez des mises actuelles reconnues ou renseignez un prix moyen ; les mises de départ ne sont pas enregistrées."}</div> :
           <div className="table-scroll"><table className="review-table saved-table">
             <thead><tr>
               <SortHeader label="Carte" column="name" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Rareté" column="rarity" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
-              <SortHeader label="Prix moyen" column="average" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
+              <SortHeader label="Prix moyen personnel" column="personal" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
+              <SortHeader label="Prix de référence" column="reference" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
+              <th scope="col">Historique</th>
             </tr></thead>
-            <tbody>{sortedPrices.map((price) => <tr key={priceKey(price.card_name, price.card_type)}>
-              <td><div className="name-cell">{price.card_name}<CopyNameButton name={price.card_name} /></div></td><td><span className={`rarity-badge ${rarityClass(price.card_type)}`}>{price.card_type}</span></td><td>{priceEditor(price.card_name, price.card_type, `saved-${priceKey(price.card_name, price.card_type)}`)}</td>
-            </tr>)}</tbody>
+            <tbody>{sortedPrices.map((price) => {
+              const key = priceKey(price.name, price.rarity);
+              const isSelected = selected !== null && priceKey(selected.name, selected.rarity) === key;
+              const estimate = estimatePrice(price.rarity, price.personal, price.summary);
+              const toggleHistory = () => setSelectedCard(isSelected ? null : { userId: session.user.id, name: price.name, rarity: price.rarity });
+              return <tr key={key}>
+                <td><div className="name-cell"><button type="button" className="card-history-button" aria-expanded={isSelected}
+                  aria-controls={isSelected ? "price-history" : undefined}
+                  onClick={toggleHistory}>{price.name}</button><CopyNameButton name={price.name} /></div></td>
+                <td><span className={`rarity-badge ${rarityClass(price.rarity)}`}>{price.rarity}</span></td>
+                <td>{priceEditor(price.name, price.rarity, `saved-${key}`)}</td>
+                <td>{currentTracking.error ? <span className="muted">Indisponible</span> : estimate.value !== null
+                  ? <><strong>{estimate.value.toLocaleString("fr-FR")}</strong><span className="default-price-note">{estimate.source}{estimate.quality ? ` · fiabilité indicative ${estimate.quality}` : ""}</span></>
+                  : <span className="muted">Estimation indisponible</span>}
+                  {!currentTracking.error && price.summary && <span className="default-price-note">{price.summary.sample_count} observation(s) récentes{price.summary.sample_count < 5 ? " · 5 pour estimer les mises" : ""}</span>}</td>
+                <td><button type="button" className="card-history-button" aria-expanded={isSelected}
+                  aria-controls={isSelected ? "price-history" : undefined} aria-label={`${isSelected ? "Fermer" : "Voir"} l’historique de ${price.name} (${price.rarity})`}
+                  onClick={toggleHistory}>{isSelected ? "Fermer" : "Voir l’historique"}</button></td>
+              </tr>;
+            })}</tbody>
           </table></div>)}
+        {selected && session && <PriceHistory key={priceKey(selected.name, selected.rarity)} name={selected.name} rarity={selected.rarity}
+          token={session.access_token} revision={historyRevision} onClose={() => setSelectedCard(null)} />}
       </section>}
 
       {priceMessage && <p className="notice" role="status">{priceMessage}</p>}
       {loadingPrices && <p className="notice" role="status">Chargement des prix moyens…</p>}
       {currentState?.status === "error" && <p className="notice error" role="alert">{currentState.message} Actualisez la page pour réessayer.</p>}
+      {currentHistory?.error && <p className="notice error" role="alert">{currentHistory.error} Les références personnelles et par défaut restent disponibles ; actualisez la page pour réessayer.</p>}
 
       {!supabase && <p className="notice error">Configurez Supabase pour enregistrer vos prix moyens. L’analyse reste disponible sans connexion.</p>}
       {supabase && !authReady && <p className="notice">Vérification de la connexion…</p>}

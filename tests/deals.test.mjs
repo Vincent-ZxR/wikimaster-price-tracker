@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareListing, effectiveAveragePrice, expirationAt, isNightExpiration, priceKey } from "../src/lib/deals.ts";
+import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isNightExpiration, priceKey, priceObservations } from "../src/lib/deals.ts";
 
 test("starting bids are good deals at or below 20% under the average", () => {
   assert.equal(compareListing({ startingPrice: 800, currentPrice: null }, 1000).good, true);
@@ -48,6 +48,42 @@ test("legendary default is 286, unless a personal average exists", () => {
   assert.equal(compareListing({ startingPrice: null, currentPrice: 229 }, effectiveAveragePrice("L", null)).good, false);
   assert.equal(compareListing({ startingPrice: 233, currentPrice: null }, effectiveAveragePrice("L", null)).good, false);
   assert.equal(compareListing({ startingPrice: 233, currentPrice: null }, effectiveAveragePrice("L", 500)).good, true);
+});
+
+test("market estimates need five observations and replace only the legendary default", () => {
+  const summary = { sample_count: 4, lower_quartile: 40, upper_quartile: 120 };
+  assert.equal(estimatePrice("UR", null, { ...summary, sample_count: 1 }).value, null);
+  assert.equal(estimatePrice("UR", null, summary).value, null);
+  assert.equal(estimatePrice("L", null, summary).value, 286);
+  assert.equal(estimatePrice("L", null, { ...summary, sample_count: 5 }).value, 120);
+  assert.equal(estimatePrice("UR", null, { ...summary, sample_count: 5 }).quality, "faible");
+});
+
+test("a personal price retains a 75 percent weight when market data is available", () => {
+  const summary = { sample_count: 20, lower_quartile: 80, upper_quartile: 160 };
+  assert.equal(estimatePrice("UR", 200, undefined).value, 200);
+  assert.deepEqual(estimatePrice("UR", 200, summary), {
+    value: 190, source: "personnel + observations", quality: "modérée",
+  });
+  assert.equal(estimatePrice("UR", 200, { ...summary, lower_quartile: 79 }).quality, "faible");
+});
+
+test("only valid and confidently identified current bids become shared observations", () => {
+  const card = { cardName: "  CARTE ", cardType: "ur", currentPrice: 100, confidence: "high" };
+  const cards = [
+    card,
+    { ...card, currentPrice: null },
+    { ...card, confidence: "low" },
+    { ...card, currentPrice: 0 },
+    { ...card, currentPrice: 1_000_000_001 },
+    { ...card, cardType: "?" },
+    { ...card, cardName: " " },
+    card,
+  ];
+  assert.deepEqual(priceObservations(cards, "capture"), [
+    { capture_hash: "capture", position: 0, name_key: "carte", card_type: "UR", current_price: 100 },
+    { capture_hash: "capture", position: 7, name_key: "carte", card_type: "UR", current_price: 100 },
+  ]);
 });
 
 test("night expiration uses the paste time and local time across midnight and days", () => {
