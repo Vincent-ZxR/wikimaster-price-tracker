@@ -95,7 +95,7 @@ export function isNightExpiration(expiration: Date | null): boolean {
 export function compareListing(
   card: Pick<ExtractedCard, "startingPrice" | "currentPrice"> & Partial<Pick<ExtractedCard, "remainingTime">>,
   average: number | null,
-): { price: number; kind: "actuelle" | "départ"; discount: number; good: boolean } | null {
+): { price: number; kind: "actuelle" | "départ"; discount: number; good: boolean; maxBid: number } | null {
   const isCurrent = card.currentPrice !== null;
   const price = listingPrice(card);
   if (price === null ||
@@ -107,5 +107,6 @@ export function compareListing(
     kind: isCurrent ? "actuelle" : "départ",
     discount: (1 - price / average) * 100,
     good: !isEnded(card.remainingTime ?? null) && price * 10 <= average * 8,
+    maxBid: Math.floor(average * 8 / 10),
   };
 }

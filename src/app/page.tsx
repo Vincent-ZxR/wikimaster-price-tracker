@@ -501,7 +501,10 @@ export default function Home() {
               <td>{priceEditor(card.cardName, card.cardType ?? "", `average-${card.id}`)}</td>
               <td><ReferencePrice estimate={estimate} personal={personal} summary={summary} available={averagesAvailable}
                 personalStatus={personalStatus} observationStatus={observationStatus} /></td>
-              <td>{isEnded(card.remainingTime) ? <span className="muted">Terminée</span> : comparison ? <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span> : <span className="muted">{!averagesAvailable ? "Prix indisponibles" : average !== null ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
+              <td>{isEnded(card.remainingTime) ? <span className="muted">Terminée</span> : comparison ? <>
+                <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span>
+                {comparison.good && <span className="default-price-note">Mise max : {comparison.maxBid.toLocaleString("fr-FR")}</span>}
+              </> : <span className="muted">{!averagesAvailable ? "Prix indisponibles" : average !== null ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
               <td><div className="flags">{night ? <span className="flag night-flag">Expire entre 3h et 7h</span> : <span className="muted">—</span>}</div></td>
               <td>{card.remainingTime || "—"}
                 {expiration && <span className="expiration">Expire le {expiration.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>}

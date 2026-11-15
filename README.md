@@ -12,7 +12,7 @@ Lors de l'activation de l'historique des moyennes, la dernière valeur personnel
 
 Les légendaires shiny sont reconnues sous la rareté **L✦**, distincte de **L** : leurs prix personnels et observations sont séparés. Les anciens imports ne peuvent pas être reclassés automatiquement.
 
-Une bonne affaire est une mise de départ ou actuelle au moins 20 % sous le **prix de référence**, sauf si sa durée indique « Terminée ». Il s'agit d'une indication, pas d'une garantie : les mises observées ne sont pas nécessairement des prix de vente finaux.
+Une bonne affaire est une mise de départ ou actuelle au moins 20 % sous le **prix de référence**, sauf si sa durée indique « Terminée ». Pour ces annonces, la colonne comparaison affiche aussi la mise maximale à 80 % du prix de référence, arrondie à l'entier inférieur. Il s'agit d'une indication, pas d'une garantie : les mises observées ne sont pas nécessairement des prix de vente finaux et le minimum autorisé par le jeu peut dépasser cette limite.
 
 Lorsqu'un utilisateur connecté analyse un texte, les mises **actuelles** positives dont le nom et la rareté ont été reconnus avec certitude sont enregistrées automatiquement dans un historique partagé entre les comptes connectés, y compris pour les annonces terminées. Le nom après la rareté est utilisé même s'il diffère du premier. Les mises de départ, les annonces incertaines et les imports textuellement identiques sont exclus. Une analyse sans connexion ne contribue pas à l'historique.
 

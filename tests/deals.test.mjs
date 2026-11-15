@@ -14,6 +14,12 @@ test("current bids use the same 20% threshold as starting bids", () => {
   assert.equal(compareListing({ startingPrice: null, currentPrice: 799 }, 1000).good, true);
 });
 
+test("maximum bid is 80% of the reference rounded down to a whole unit", () => {
+  assert.equal(compareListing({ startingPrice: 200, currentPrice: null }, 286).maxBid, 228);
+  assert.equal(compareListing({ startingPrice: null, currentPrice: 800 }, 1000).maxBid, 800);
+  assert.equal(compareListing({ startingPrice: 1, currentPrice: null }, 101).maxBid, 80);
+});
+
 test("missing or invalid references never result in a deal", () => {
   assert.equal(compareListing({ startingPrice: 10, currentPrice: null }, null), null);
   assert.equal(compareListing({ startingPrice: 10, currentPrice: null }, 0), null);
