@@ -119,6 +119,7 @@ export default function Home() {
   const [cards, setCards] = useState<ExtractedCard[]>([]);
   const [activeTab, setActiveTab] = useState<"annonces" | "prices">("annonces");
   const [listingSort, setListingSort] = useState<Sort<ListingColumn> | null>(null);
+  const [dealsOnly, setDealsOnly] = useState(false);
   const [priceSort, setPriceSort] = useState<Sort<PriceColumn> | null>(null);
   const [trackingSearch, setTrackingSearch] = useState("");
   const [textPastedAt, setTextPastedAt] = useState<number | null>(null);
@@ -403,7 +404,7 @@ export default function Home() {
     };
   });
   const dealCount = rows.filter((row) => row.comparison?.good).length;
-  const sortedRows = [...rows].sort((a, b) => listingSort
+  const sortedRows = (dealsOnly ? rows.filter((row) => row.comparison?.good) : [...rows]).sort((a, b) => listingSort
     ? compareSortValues(listingSortValue(a, listingSort.column), listingSortValue(b, listingSort.column), listingSort.direction)
     : Number(Boolean(b.comparison?.good)) - Number(Boolean(a.comparison?.good)));
   const trackedCards = new Map<string, { name: string; rarity: string; manual: number | null; summary?: PriceSummary }>();
@@ -431,6 +432,12 @@ export default function Home() {
     return compareSortValues(value(a), value(b), priceSort?.direction ?? "ascending");
   });
   const selected = selectedCard;
+  function openHistory(name: string, rarity: string) {
+    setTrackingSearch(name);
+    setSelectedCard({ name, rarity });
+    setActiveTab("prices");
+    window.scrollTo({ top: 0 });
+  }
 
   if (!authReady || !authorized) {
     return (
@@ -503,7 +510,11 @@ export default function Home() {
           <div><h1 id="list-heading">Annonces</h1><p>{listingSort ? "Tri par colonne activé." : "Les bonnes affaires apparaissent en premier."}</p></div>
           <div className="counts"><span>{cards.length} annonce(s)</span><span className="deal-count">{dealCount} bonne(s) affaire(s)</span></div>
         </div>
+        {cards.length > 0 && <label className="deals-filter">
+          <input type="checkbox" checked={dealsOnly} onChange={(event) => setDealsOnly(event.target.checked)} /> Afficher uniquement les bonnes affaires
+        </label>}
         {cards.length === 0 ? <div className="empty-state">Aucune annonce pour le moment. Collez le texte du marché ci-dessus.</div> :
+          sortedRows.length === 0 ? <div className="empty-state">Aucune bonne affaire parmi les annonces actuelles.</div> :
           <div className="table-scroll listing-scroll"><table className="review-table listing-table">
             <colgroup>
               <col className="listing-name" /><col className="listing-rarity" /><col className="listing-price" />
@@ -524,7 +535,10 @@ export default function Home() {
               <th><span className="sr-only">Supprimer</span></th>
             </tr></thead>
             <tbody>{sortedRows.map(({ card, average, manual, estimate, summary, comparison, expiration, night }) => <tr key={card.id}>
-              <td><div className="name-cell"><strong>{card.cardName || "Nom non reconnu"}</strong><CopyNameButton name={card.cardName} /></div></td>
+              <td><div className="name-cell">{card.cardName && card.cardType
+                ? <button type="button" className="card-history-button" title="Voir le graphique de prix"
+                  onClick={() => openHistory(card.cardName, card.cardType ?? "")}><strong>{card.cardName}</strong></button>
+                : <strong>{card.cardName || "Nom non reconnu"}</strong>}<CopyNameButton name={card.cardName} /></div></td>
               <td><span className={`rarity-badge ${rarityClass(card.cardType)}`}>{card.cardType || "—"}</span></td>
               <td>{card[card.bidKind] !== null ? card[card.bidKind]?.toLocaleString("fr-FR") : "—"}</td>
               <td><span className="bid-kind">{card.bidKind === "currentPrice" ? "Actuelle" : "Départ"}</span></td>
