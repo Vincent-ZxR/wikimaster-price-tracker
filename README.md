@@ -32,7 +32,9 @@ Cliquez sur un en-tête pour trier les annonces ou les prix moyens ; un deuxièm
 
 Le bouton **Copier** à côté d'un nom le place dans le presse-papiers ; le navigateur peut demander une autorisation.
 
-Les annonces affichées et le texte importé restent temporaires dans le navigateur et disparaissent au rechargement. Les prix moyens et les observations de mises actuelles partagés sont enregistrés dans Supabase. L'ancienne table `market_listings` et ses données sont conservées, mais la migration désactive l'ajout de nouvelles annonces. Les lots sont limités à 1 000 annonces.
+Dans l'onglet **Mots-clés**, chaque membre du groupe peut consulter la liste, ajouter une expression d'un ou plusieurs mots (200 caractères maximum) et la copier. La liste est rechargée à l'ouverture de l'onglet ou avec **Actualiser**.
+
+Les annonces affichées et le texte importé restent temporaires dans le navigateur et disparaissent au rechargement. Les mots-clés, prix moyens et observations de mises actuelles partagés sont enregistrés dans Supabase. L'ancienne table `market_listings` et ses données sont conservées, mais la migration désactive l'ajout de nouvelles annonces. Les lots sont limités à 1 000 annonces.
 
 La police Poppins est distribuée sous la [SIL Open Font License](./public/fonts/OFL.txt).
 
@@ -47,9 +49,10 @@ La police Poppins est distribuée sous la [SIL Open Font License](./public/fonts
    - [`supabase/migrations/20261116030000_match_price_observations.sql`](./supabase/migrations/20261116030000_match_price_observations.sql)
    - [`supabase/migrations/20261116040000_legendary_shiny.sql`](./supabase/migrations/20261116040000_legendary_shiny.sql)
    - [`supabase/migrations/20261117000000_shared_access.sql`](./supabase/migrations/20261117000000_shared_access.sql)
+   - [`supabase/migrations/20261118000000_keywords.sql`](./supabase/migrations/20261118000000_keywords.sql)
 2. Récupérez l'URL du projet et la clé **service_role** dans les paramètres API. Cette clé reste exclusivement côté serveur.
 
-La dernière migration regroupe les moyennes et leurs historiques de tous les comptes : en cas de conflit, la valeur actuelle la plus récemment datée est retenue. Les historiques existants restent conservés. Les règles RLS et les privilèges SQL interdisent l'accès direct aux données ; seule l'application, après vérification du mot de passe partagé, utilise la clé serveur. Pour un projet existant, mettez l'ancienne application en pause, appliquez les migrations manquantes dans l'ordre, puis déployez cette version avant de rouvrir l'accès : la dernière migration change le schéma et les anciennes versions ne sont plus compatibles. Les anciennes annonces ne sont pas supprimées.
+La migration d'accès partagé regroupe les moyennes et leurs historiques de tous les comptes : en cas de conflit, la valeur actuelle la plus récemment datée est retenue. Les historiques existants restent conservés. Les règles RLS et les privilèges SQL interdisent l'accès direct aux données ; seule l'application, après vérification du mot de passe partagé, utilise la clé serveur. Pour un projet utilisant encore les comptes individuels, mettez l'ancienne application en pause, appliquez les migrations manquantes dans l'ordre, puis déployez cette version avant de rouvrir l'accès : la migration d'accès partagé change le schéma et les anciennes versions ne sont plus compatibles. Les anciennes annonces ne sont pas supprimées. Pour ajouter les mots-clés à un projet déjà partagé, appliquez la migration correspondante avant le déploiement.
 
 ## Configurer et exécuter l'application
 

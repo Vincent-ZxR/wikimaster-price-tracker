@@ -19,6 +19,12 @@ export type AveragePrice = {
   average_price: number;
 };
 
+export type Keyword = {
+  id: string;
+  value: string;
+  created_at: string;
+};
+
 export type PriceSummary = {
   name_key: string;
   card_type: string;
@@ -63,6 +69,12 @@ type PriceObservation = {
 export type Database = {
   public: {
     Tables: {
+      keywords: {
+        Row: Keyword;
+        Insert: { id?: string; value: string; created_at?: string };
+        Update: Partial<Keyword>;
+        Relationships: [];
+      };
       average_prices: {
         Row: AveragePrice;
         Insert: AveragePrice;

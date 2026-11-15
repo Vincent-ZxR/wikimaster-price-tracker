@@ -4,8 +4,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { parseMarketplaceText } from "@/lib/parse-marketplace";
 import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isEnded, isNightExpiration, isValidRarity, matchesCardSearch, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
 import { compareSortValues, nextSort, type Sort } from "@/lib/sort";
+import { normalizeKeyword } from "@/lib/keywords";
 import { PriceHistory } from "./price-history";
-import type { AveragePrice, ExtractedCard, PriceSummary, TrackedPrice } from "@/lib/types";
+import type { AveragePrice, ExtractedCard, Keyword, PriceSummary, TrackedPrice } from "@/lib/types";
 
 type PricesState =
   | { status: "ready"; prices: AveragePrice[] }
@@ -84,7 +85,7 @@ function ReferencePrice({ estimate, manual, summary, available, manualStatus, ob
   </>;
 }
 
-function CopyNameButton({ name }: { name: string }) {
+function CopyNameButton({ name, label = "nom" }: { name: string; label?: string }) {
   const [feedback, setFeedback] = useState<{ name: string; success: boolean } | null>(null);
   const visibleFeedback = feedback?.name === name ? feedback : null;
 
@@ -100,13 +101,91 @@ function CopyNameButton({ name }: { name: string }) {
 
   return <span className="copy-control">
     <button className="copy-button" type="button" disabled={!name.trim()}
-      aria-label={`Copier le nom ${name || "de la carte"}`} onClick={() => void copyName()}>
+      aria-label={`Copier le ${label} ${name || "de la carte"}`} onClick={() => void copyName()}>
       {visibleFeedback?.success ? "Copié" : "Copier"}
     </button>
     <span role="status" className={visibleFeedback && !visibleFeedback.success ? "copy-error" : "sr-only"}>
-      {visibleFeedback ? visibleFeedback.success ? "Nom copié." : "Copie impossible. Vérifiez les autorisations du navigateur." : ""}
+      {visibleFeedback ? visibleFeedback.success ? `${label === "nom" ? "Nom" : "Mot-clé"} copié.` : "Copie impossible. Vérifiez les autorisations du navigateur." : ""}
     </span>
   </span>;
+}
+
+function Keywords() {
+  const [revision, setRevision] = useState(0);
+  const [state, setState] = useState<{ revision: number; keywords: Keyword[]; error: string | null } | null>(null);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const current = state?.revision === revision ? state : null;
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/keywords", { cache: "no-store" });
+        const result: { keywords?: Keyword[]; error?: string } = await response.json();
+        if (!response.ok || !result.keywords) throw new Error(result.error || "Impossible de charger les mots-clés.");
+        if (active) setState({ revision, keywords: result.keywords, error: null });
+      } catch (error) {
+        if (active) setState({
+          revision, keywords: [], error: error instanceof Error ? error.message : "Impossible de charger les mots-clés.",
+        });
+      }
+    })();
+    return () => { active = false; };
+  }, [revision]);
+
+  async function addKeyword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || !current || current.error) return;
+    const keyword = normalizeKeyword(value);
+    if (!keyword) {
+      setMessage("Saisissez un mot-clé sur une ligne (200 caractères maximum).");
+      return;
+    }
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: keyword }),
+      });
+      const result: { keyword?: Keyword; error?: string } = await response.json();
+      if (!response.ok || !result.keyword) throw new Error(result.error || "Impossible d’ajouter le mot-clé.");
+      const saved = result.keyword;
+      setState((previous) => previous ? { ...previous, keywords: [saved, ...previous.keywords] } : previous);
+      setValue("");
+      setMessage("Mot-clé ajouté à la liste partagée.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Impossible d’ajouter le mot-clé.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <section className="saved-section" aria-labelledby="keywords-heading">
+    <div className="section-heading">
+      <div><h1 id="keywords-heading">Mots-clés</h1><p>Une liste partagée pour tout le groupe. Un mot-clé peut contenir plusieurs mots.</p></div>
+      <button className="copy-button" type="button" disabled={!current || saving}
+        onClick={() => setRevision((previous) => previous + 1)}>Actualiser</button>
+    </div>
+    <form className="signin-form keyword-form" onSubmit={(event) => void addKeyword(event)}>
+      <label className="sr-only" htmlFor="keyword-input">Mot-clé à ajouter</label>
+      <input id="keyword-input" value={value} onChange={(event) => setValue(event.target.value)}
+        placeholder="Saisissez un ou plusieurs mots" required />
+      <button className="primary-button" type="submit" disabled={!current || Boolean(current.error) || saving}>
+        {saving ? "Ajout…" : "Ajouter"}
+      </button>
+    </form>
+    {message && <p className="notice" role="status">{message}</p>}
+    {!current ? <p className="notice" role="status">Chargement des mots-clés…</p>
+      : current.error ? <p className="notice error" role="alert">{current.error}</p>
+      : current.keywords.length === 0 ? <div className="empty-state keyword-list">Aucun mot-clé pour le moment.</div>
+      : <ul className="keyword-list">{current.keywords.map((keyword) =>
+        <li key={keyword.id}><span>{keyword.value}</span><CopyNameButton name={keyword.value} label="mot-clé" /></li>
+      )}</ul>}
+  </section>;
 }
 
 export default function Home() {
@@ -117,7 +196,7 @@ export default function Home() {
   const [authMessage, setAuthMessage] = useState("");
   const [text, setText] = useState("");
   const [cards, setCards] = useState<ExtractedCard[]>([]);
-  const [activeTab, setActiveTab] = useState<"annonces" | "prices">("annonces");
+  const [activeTab, setActiveTab] = useState<"annonces" | "prices" | "keywords">("annonces");
   const [listingSort, setListingSort] = useState<Sort<ListingColumn> | null>(null);
   const [dealsOnly, setDealsOnly] = useState(false);
   const [priceSort, setPriceSort] = useState<Sort<PriceColumn> | null>(null);
@@ -478,7 +557,10 @@ export default function Home() {
       <nav className="tabs" aria-label="Sections">
         <button type="button" aria-pressed={activeTab === "annonces"} onClick={() => setActiveTab("annonces")}>Annonces</button>
         <button type="button" aria-pressed={activeTab === "prices"} onClick={() => setActiveTab("prices")}>Suivi de prix</button>
+        <button type="button" aria-pressed={activeTab === "keywords"} onClick={() => setActiveTab("keywords")}>Mots-clés</button>
       </nav>
+
+      {activeTab === "keywords" && <Keywords />}
 
       {activeTab === "annonces" && <>
       <section className="import-section" aria-labelledby="import-heading">
