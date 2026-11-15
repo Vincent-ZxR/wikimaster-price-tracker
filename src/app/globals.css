@@ -127,6 +127,8 @@ h2 { font-size: 18px; }
   font-weight: 700;
 }
 .rarity-badge.rarity-L { background: #f7d951; color: #211a05; }
+.rarity-badge.rarity-L-shiny { background: #211a05; color: #f7d951; border-color: #f7d951; }
+.type-input.rarity-L-shiny { width: 78px; }
 .rarity-badge.rarity-UR { background: #f2a646; color: #271704; }
 .rarity-badge.rarity-C { background: #c6f4d8; color: #11241a; }
 .rarity-badge.rarity-PC { background: #baccf1; color: #111a2b; }

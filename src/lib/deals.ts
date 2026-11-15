@@ -5,7 +5,12 @@ export function normalizeName(name: string): string {
 }
 
 export function normalizeRarity(rarity: string): string {
-  return rarity.trim().toUpperCase();
+  const normalized = rarity.trim().toUpperCase();
+  return /^L\s*(?:✦|SHINY)$/u.test(normalized) ? "L✦" : normalized;
+}
+
+export function isValidRarity(rarity: string): boolean {
+  return /^(?:L✦|L|UR|SR|R|PC|C)$/u.test(normalizeRarity(rarity));
 }
 
 export function matchesCardSearch(name: string, search: string): boolean {
@@ -36,7 +41,7 @@ export function priceObservations(
       : expirationAt(pastedAt, card.remainingTime);
     const validExpiration = expiration && Number.isFinite(expiration.getTime()) ? expiration.toISOString() : null;
     return card.confidence === "high" && nameKey.length > 0 && nameKey.length <= 200 &&
-      /^(?:L|UR|SR|R|PC|C)$/u.test(rarity) && price !== null && Number.isSafeInteger(price) &&
+      isValidRarity(rarity) && price !== null && Number.isSafeInteger(price) &&
       price >= 1 && price <= 1_000_000_000
       ? [{
         position, name_key: nameKey, card_type: rarity, current_price: price,
@@ -53,7 +58,7 @@ function listingPrice(card: Pick<ExtractedCard, "startingPrice" | "currentPrice"
 }
 
 export function effectiveAveragePrice(rarity: string | null, savedAverage: number | null): number | null {
-  return savedAverage ?? (normalizeRarity(rarity ?? "") === "L" ? 286 : null);
+  return savedAverage ?? (["L", "L✦"].includes(normalizeRarity(rarity ?? "")) ? 286 : null);
 }
 
 export function estimatePrice(rarity: string | null, personal: number | null, summary: PriceSummary | undefined) {

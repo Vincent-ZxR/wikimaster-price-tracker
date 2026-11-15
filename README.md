@@ -10,6 +10,8 @@ WikiTrack compare les annonces du marché WikiMasters à vos prix moyens. L'anal
 
 Lors de l'activation de l'historique des moyennes, la dernière valeur personnelle existante est conservée avec une date inconnue : les saisies antérieures et leurs dates n'étaient pas enregistrées et ne peuvent pas être reconstituées. Cette valeur figure dans le détail, mais pas sur la courbe. Les nouvelles saisies sont horodatées et ajoutées sans effacer les précédentes.
 
+Les légendaires shiny sont reconnues sous la rareté **L✦**, distincte de **L** : leurs prix personnels et observations sont séparés. Pour corriger manuellement une rareté, saisissez `L✦` ou `L shiny`. Les anciens imports ne peuvent pas être reclassés automatiquement.
+
 Une bonne affaire est une mise de départ ou actuelle au moins 20 % sous le **prix de référence**, sauf si sa durée indique « Terminée ». Il s'agit d'une indication, pas d'une garantie : les mises observées ne sont pas nécessairement des prix de vente finaux.
 
 Lorsqu'un utilisateur connecté analyse un texte, les mises **actuelles** positives dont le nom et la rareté ont été reconnus avec certitude sont enregistrées automatiquement dans un historique partagé entre les comptes connectés, y compris pour les annonces terminées. Le nom après la rareté est utilisé même s'il diffère du premier. Les mises de départ, les annonces incertaines et les imports textuellement identiques sont exclus ; corriger une ligne après analyse ne modifie pas l'historique. Une analyse sans connexion ne contribue pas à l'historique.
@@ -18,7 +20,7 @@ Pour les nouveaux imports, le vendeur et l'expiration estimée permettent de rap
 
 Une carte apparaît dans **Suivi de prix** dès sa première mise actuelle enregistrée. Utilisez **Voir l'historique** pour consulter cette mise et sa date ; le seuil de 5 observations concerne uniquement l'estimation des mises, pas l'affichage de l'historique.
 
-Pour chaque nom et rareté, l'estimation utilise au maximum les 200 dernières observations des 90 derniers jours. À partir de 5 observations, elle prend leur 75e percentile (le quartile supérieur) : les mises les plus basses ont ainsi moins d'influence, sans supposer de distribution particulière. Si un prix moyen personnel existe aussi, le prix de référence est calculé avec 75 % de la **dernière** moyenne personnelle et 25 % de l'estimation des observations. Les moyennes précédentes restent disponibles dans l'historique mais ne participent pas au calcul actuel. Avec moins de 5 observations, seul le prix personnel est utilisé. Sans prix personnel ni suffisamment d'observations, la référence est 286 pour les légendaires (L), et indisponible pour les autres raretés.
+Pour chaque nom et rareté, l'estimation utilise au maximum les 200 dernières observations des 90 derniers jours. À partir de 5 observations, elle prend leur 75e percentile (le quartile supérieur) : les mises les plus basses ont ainsi moins d'influence, sans supposer de distribution particulière. Si un prix moyen personnel existe aussi, le prix de référence est calculé avec 75 % de la **dernière** moyenne personnelle et 25 % de l'estimation des observations. Les moyennes précédentes restent disponibles dans l'historique mais ne participent pas au calcul actuel. Avec moins de 5 observations, seul le prix personnel est utilisé. Sans prix personnel ni suffisamment d'observations, la référence est 286 pour les légendaires classiques et shiny (L et L✦), et indisponible pour les autres raretés.
 
 Les observations sont conservées sans limite de 90 jours, mais les mises précédentes d'une même annonce rapprochée sont remplacées. Elles ne permettent pas de retrouver les prix de vente finaux, les identifiants d'enchères ou les informations non enregistrées lors de l'import ; la date d'une mise est celle de son dernier enregistrement, pas nécessairement celle de la capture.
 
@@ -41,6 +43,7 @@ La police Poppins est distribuée sous la [SIL Open Font License](./public/fonts
    - [`supabase/migrations/20261116010000_price_tracking.sql`](./supabase/migrations/20261116010000_price_tracking.sql)
    - [`supabase/migrations/20261116020000_average_price_history.sql`](./supabase/migrations/20261116020000_average_price_history.sql)
    - [`supabase/migrations/20261116030000_match_price_observations.sql`](./supabase/migrations/20261116030000_match_price_observations.sql)
+   - [`supabase/migrations/20261116040000_legendary_shiny.sql`](./supabase/migrations/20261116040000_legendary_shiny.sql)
 2. Dans **Authentication → Providers**, activez la connexion par email.
 3. Dans **Authentication → URL Configuration**, définissez l'URL du site et ajoutez les URL de redirection nécessaires, notamment celle de Vercel.
 4. Récupérez l'URL du projet et la clé anon/publishable dans les paramètres API.

@@ -1,8 +1,6 @@
 import { authenticateRequest } from "@/lib/server-auth";
-import { normalizeName, normalizeRarity } from "@/lib/deals";
+import { isValidRarity, normalizeName, normalizeRarity } from "@/lib/deals";
 import type { AveragePrice } from "@/lib/types";
-
-const RARITY = /^(?:L|UR|SR|R|PC|C)$/u;
 
 type PriceInput = {
   cardName: string;
@@ -19,7 +17,7 @@ function isPriceInput(value: unknown): value is PriceInput {
     normalizeName(input.cardName).length <= 200 &&
     input.cardName.trim().replace(/\s+/gu, " ").normalize("NFC").length <= 200 &&
     typeof input.cardType === "string" &&
-    RARITY.test(normalizeRarity(input.cardType)) &&
+    isValidRarity(input.cardType) &&
     typeof input.averagePrice === "number" &&
     Number.isSafeInteger(input.averagePrice) &&
     input.averagePrice >= 1 &&

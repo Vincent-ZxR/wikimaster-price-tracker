@@ -34,6 +34,8 @@ test("reference keys ignore case and extra whitespace but distinguish rarity", (
   assert.equal(priceKey("  PAUL   SEIXAS ", "ur"), priceKey("Paul Seixas", "UR"));
   assert.notEqual(priceKey("Paul Seixas", "UR"), priceKey("Paul Seixas", "L"));
   assert.equal(priceKey("Pogac\u030car", "L"), priceKey("Pogačar", "l"));
+  assert.notEqual(priceKey("Carte", "L"), priceKey("Carte", "L✦"));
+  assert.equal(priceKey("Carte", "l shiny"), priceKey("Carte", "L✦"));
 });
 
 test("search only matches nonempty names, ignoring case, accents and surrounding whitespace", () => {
@@ -45,6 +47,8 @@ test("search only matches nonempty names, ignoring case, accents and surrounding
 
 test("legendary default is 286, unless a personal average exists", () => {
   assert.equal(effectiveAveragePrice(" l ", null), 286);
+  assert.equal(effectiveAveragePrice("L✦", null), 286);
+  assert.equal(effectiveAveragePrice("l shiny", 500), 500);
   assert.equal(effectiveAveragePrice("UR", null), null);
   assert.equal(effectiveAveragePrice(null, null), null);
   assert.equal(effectiveAveragePrice("L", 500), 500);

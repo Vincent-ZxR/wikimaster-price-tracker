@@ -1,10 +1,8 @@
 import { createHash } from "node:crypto";
 import { authenticateRequest } from "@/lib/server-auth";
-import { normalizeName, normalizeRarity, priceObservations } from "@/lib/deals";
+import { isValidRarity, normalizeName, normalizeRarity, priceObservations } from "@/lib/deals";
 import { parseMarketplaceText } from "@/lib/parse-marketplace";
 import type { HistoricalAverage, HistoricalBid, TrackedPrice } from "@/lib/types";
-
-const RARITY = /^(?:L|UR|SR|R|PC|C)$/u;
 
 export async function POST(request: Request) {
   const authenticated = await authenticateRequest(request);
@@ -31,7 +29,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "Heure du collage invalide." }, { status: 400 });
     }
     const cards = parseMarketplaceText(body.text).cards;
-    const captureHash = createHash("sha256").update(body.text).digest("hex");
+    const captureHash = createHash("sha256")
+      .update(cards.some((card) => card.cardType === "L✦") ? "legendary-shiny-v1\0" : "")
+      .update(body.text).digest("hex");
     const observations = priceObservations(cards, body.pastedAt);
     if (observations.length === 0) return Response.json({ inserted: 0, updated: 0, unmatched: 0, duplicate: false });
     const { data, error } = await authenticated.supabase.rpc("record_price_observations", {
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
       }
       const name_key = normalizeName(value.name);
       const card_type = normalizeRarity(value.rarity);
-      if (name_key.length > 0 && name_key.length <= 200 && RARITY.test(card_type)) keys.push({ name_key, card_type });
+      if (name_key.length > 0 && name_key.length <= 200 && isValidRarity(card_type)) keys.push({ name_key, card_type });
     }
     if (keys.length === 0) return Response.json({ summaries: [] });
     const { data, error } = await authenticated.supabase.rpc("price_observation_summaries", { keys });
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
     }
     const name = normalizeName(body.name);
     const rarity = normalizeRarity(body.rarity);
-    if (!name || name.length > 200 || !RARITY.test(rarity)) {
+    if (!name || name.length > 200 || !isValidRarity(rarity)) {
       return Response.json({ error: "Carte invalide." }, { status: 400 });
     }
     const observations: HistoricalBid[] = [];

@@ -12,11 +12,22 @@ function findLineHeader(segment: string): Header | null {
 
   for (let index = lines.length - 2; index >= 0; index--) {
     if (!RARITY.test(lines[index])) continue;
-    const second = lines[index + 1].replace(/\s+/gu, " ").normalize("NFC");
+    let nameIndex = index + 1;
+    let shiny = false;
+    if (lines[index] === "L") {
+      while (nameIndex < lines.length && /^(?:✦|shiny)$/iu.test(lines[nameIndex])) {
+        shiny = true;
+        nameIndex++;
+      }
+    } else if (/^(?:✦|shiny)$/iu.test(lines[nameIndex])) {
+      return null;
+    }
+    if (nameIndex >= lines.length) continue;
+    const second = lines[nameIndex].replace(/\s+/gu, " ").normalize("NFC");
     if (!second || RARITY.test(second) || /^\d[\d\s]*$/u.test(second)) continue;
     return {
       name: second,
-      type: lines[index],
+      type: shiny ? "L✦" : lines[index],
       uncertain: false,
     };
   }

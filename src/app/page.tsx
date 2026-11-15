@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { parseMarketplaceText } from "@/lib/parse-marketplace";
-import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isEnded, isNightExpiration, matchesCardSearch, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
+import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isEnded, isNightExpiration, isValidRarity, matchesCardSearch, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
 import { compareSortValues, nextSort, type Sort } from "@/lib/sort";
 import { PriceHistory } from "./price-history";
 import type { AveragePrice, ExtractedCard, PriceSummary, TrackedPrice } from "@/lib/types";
@@ -57,7 +57,7 @@ function SortHeader<Column extends string>({ label, column, sort, onSort }: {
 
 function rarityClass(rarity: string | null): string {
   const normalized = normalizeRarity(rarity ?? "");
-  return /^(?:L|UR|SR|R|PC|C)$/u.test(normalized) ? `rarity-${normalized}` : "";
+  return normalized === "L✦" ? "rarity-L-shiny" : isValidRarity(normalized) ? `rarity-${normalized}` : "";
 }
 
 function CopyNameButton({ name }: { name: string }) {
@@ -318,7 +318,7 @@ export default function Home() {
     const raw = drafts[key] ?? "";
     const value = Number(raw);
     if (!normalizeName(name) || normalizeName(name).length > 200 ||
-        !/^(?:L|UR|SR|R|PC|C)$/u.test(normalizeRarity(rarity)) ||
+        !isValidRarity(rarity) ||
         !raw.trim() || !Number.isSafeInteger(value) || value < 1 || value > 1_000_000_000) {
       setPriceMessage("Vérifiez le nom, la rareté et le prix moyen (nombre entier entre 1 et 1 000 000 000).");
       return;
@@ -357,7 +357,7 @@ export default function Home() {
     const draft = drafts[key];
     const average = authReady && (!session || currentState?.status === "ready") ? effectiveAveragePrice(rarity, saved?.average_price ?? null) : null;
     const value = draft ?? (average === null ? "" : String(average));
-    const validIdentity = Boolean(normalizeName(name)) && /^(?:L|UR|SR|R|PC|C)$/u.test(normalizeRarity(rarity));
+    const validIdentity = Boolean(normalizeName(name)) && isValidRarity(rarity);
     return (
       <div>
       <div className="price-editor">

@@ -50,6 +50,32 @@ test("recognizes an event name with a year, without using the description or sta
   assert.deepEqual(warnings, []);
 });
 
+test("recognizes legendary shiny without mistaking the symbol for the card name", () => {
+  const text = [
+    "Éric Ciotti", "L", "✦", "shiny", "Éric Ciotti", "homme politique français",
+    "Mise actuelle", "450", "Durée", "1h", "Vendu par vendeur",
+    "Éric Ciotti", "L", "Éric Ciotti", "Mise actuelle", "100", "Durée", "1h",
+  ].join("\n");
+  const { cards, warnings } = parseMarketplaceText(text);
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(cards.map(({ cardName, cardType, confidence }) => ({ cardName, cardType, confidence })), [
+    { cardName: "Éric Ciotti", cardType: "L✦", confidence: "high" },
+    { cardName: "Éric Ciotti", cardType: "L", confidence: "high" },
+  ]);
+  assert.deepEqual(priceObservations(cards, 0).map(({ name_key, card_type }) => ({ name_key, card_type })), [
+    { name_key: "éric ciotti", card_type: "L✦" },
+    { name_key: "éric ciotti", card_type: "L" },
+  ]);
+});
+
+test("does not mistake an unsupported shiny rarity for a card named with the symbol", () => {
+  const { cards, warnings } = parseMarketplaceText("L\nCarte\nUR\n✦\nshiny\nCarte\nMise actuelle\n50\nDurée\n1h");
+  assert.equal(cards[0].confidence, "low");
+  assert.equal(cards[0].cardName, "");
+  assert.match(warnings.join(" "), /non reconnu/);
+  assert.deepEqual(priceObservations(cards, 0), []);
+});
+
 test("extracts a seller on the line after the label without leaking it to the next listing", () => {
   const text = [
     "Carte", "L", "Carte", "Mise actuelle", "10", "Durée", "1h",
