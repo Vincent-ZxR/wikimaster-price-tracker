@@ -26,18 +26,28 @@ export async function POST(request: Request) {
     if (typeof body.text !== "string" || body.text.length > 1_000_000) {
       return Response.json({ error: "Texte du marché invalide ou trop long." }, { status: 400 });
     }
+    if (body.pastedAt !== null && (typeof body.pastedAt !== "number" ||
+        !Number.isSafeInteger(body.pastedAt) || !Number.isFinite(new Date(body.pastedAt).getTime()))) {
+      return Response.json({ error: "Heure du collage invalide." }, { status: 400 });
+    }
     const cards = parseMarketplaceText(body.text).cards;
     const captureHash = createHash("sha256").update(body.text).digest("hex");
-    const observations = priceObservations(cards, captureHash);
-    if (observations.length === 0) return Response.json({ recorded: 0 });
-    const { data, error } = await authenticated.supabase.from("price_observations")
-      .upsert(observations, { onConflict: "capture_hash,position", ignoreDuplicates: true })
-      .select("position");
+    const observations = priceObservations(cards, body.pastedAt);
+    if (observations.length === 0) return Response.json({ inserted: 0, updated: 0, unmatched: 0, duplicate: false });
+    const { data, error } = await authenticated.supabase.rpc("record_price_observations", {
+      p_capture_hash: captureHash,
+      p_captured_at: body.pastedAt === null ? null : new Date(body.pastedAt).toISOString(),
+      p_observations: observations,
+    });
     if (error) {
       console.error("Could not save price observations.", error.message);
       return Response.json({ error: "Impossible d’enregistrer les observations de prix." }, { status: 500 });
     }
-    return Response.json({ recorded: data.length });
+    if (data.length !== 1) {
+      console.error("Unexpected price observation result.");
+      return Response.json({ error: "Impossible de confirmer l’enregistrement des observations." }, { status: 500 });
+    }
+    return Response.json(data[0]);
   }
   if (body.action === "lookup" && Array.isArray(body.keys) && body.keys.length <= 1000) {
     const keys: { name_key: string; card_type: string }[] = [];

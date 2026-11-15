@@ -23,17 +23,26 @@ export function priceKey(name: string, rarity: string): string {
 }
 
 export function priceObservations(
-  cards: Pick<ExtractedCard, "cardName" | "cardType" | "currentPrice" | "confidence">[],
-  captureHash: string,
+  cards: Pick<ExtractedCard, "cardName" | "cardType" | "currentPrice" | "confidence" | "seller" | "remainingTime">[],
+  pastedAt: number | null,
 ) {
   return cards.flatMap((card, position) => {
     const nameKey = normalizeName(card.cardName);
     const rarity = normalizeRarity(card.cardType ?? "");
     const price = card.currentPrice;
+    const seller = normalizeName(card.seller ?? "");
+    const expiration = isEnded(card.remainingTime)
+      ? pastedAt === null ? null : new Date(pastedAt)
+      : expirationAt(pastedAt, card.remainingTime);
+    const validExpiration = expiration && Number.isFinite(expiration.getTime()) ? expiration.toISOString() : null;
     return card.confidence === "high" && nameKey.length > 0 && nameKey.length <= 200 &&
       /^(?:L|UR|SR|R|PC|C)$/u.test(rarity) && price !== null && Number.isSafeInteger(price) &&
       price >= 1 && price <= 1_000_000_000
-      ? [{ capture_hash: captureHash, position, name_key: nameKey, card_type: rarity, current_price: price }]
+      ? [{
+        position, name_key: nameKey, card_type: rarity, current_price: price,
+        seller_key: seller.length > 0 && seller.length <= 200 ? seller : null,
+        expires_at: validExpiration,
+      }]
       : [];
   });
 }

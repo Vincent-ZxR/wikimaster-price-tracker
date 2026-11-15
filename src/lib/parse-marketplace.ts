@@ -88,6 +88,9 @@ export function parseMarketplaceText(text: string): {
     }
     const validPrice = Number.isSafeInteger(price) ? price : null;
     const current = match[1].toLowerCase() === "actuelle";
+    const following = text.slice(match.index + match[0].length);
+    const sellerMatch = /^\s*Vendu[ \t]+par(?:[ \t]+(\S[^\r\n]*)|[ \t]*\r?\n[ \t]*(\S[^\r\n]*))/iu.exec(following);
+    const seller = (sellerMatch?.[1] ?? sellerMatch?.[2])?.trim() || null;
     cards.push({
       cardName: header?.name ?? "",
       cardType: header?.type ?? null,
@@ -95,6 +98,7 @@ export function parseMarketplaceText(text: string): {
       currentPrice: current ? validPrice : null,
       startingPrice: current ? null : validPrice,
       remainingTime: match[3].trim().replace(/\s+/gu, " "),
+      seller,
       confidence: header && !header.uncertain ? "high" : "low",
     });
     previousEnd = match.index + match[0].length;

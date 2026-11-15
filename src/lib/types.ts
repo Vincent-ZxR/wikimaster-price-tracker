@@ -8,6 +8,7 @@ export interface ExtractedCard {
   currentPrice: number | null;
   startingPrice: number | null;
   remainingTime: string | null;
+  seller: string | null;
   confidence: Confidence;
 }
 
@@ -56,6 +57,9 @@ type PriceObservation = {
   card_type: string;
   current_price: number;
   observed_at: string;
+  seller_key: string | null;
+  expires_at: string | null;
+  captured_at: string | null;
 };
 
 export type Database = {
@@ -75,13 +79,26 @@ export type Database = {
       };
       price_observations: {
         Row: PriceObservation;
-        Insert: Omit<PriceObservation, "observed_at"> & { observed_at?: string };
+        Insert: Omit<PriceObservation, "observed_at" | "seller_key" | "expires_at" | "captured_at"> & {
+          observed_at?: string; seller_key?: string | null; expires_at?: string | null; captured_at?: string | null;
+        };
         Update: Partial<PriceObservation>;
         Relationships: [];
       };
     };
     Views: { [_ in never]: never };
     Functions: {
+      record_price_observations: {
+        Args: {
+          p_capture_hash: string;
+          p_captured_at: string | null;
+          p_observations: {
+            position: number; name_key: string; card_type: string; current_price: number;
+            seller_key: string | null; expires_at: string | null;
+          }[];
+        };
+        Returns: { inserted: number; updated: number; unmatched: number; duplicate: boolean }[];
+      };
       price_observation_summaries: {
         Args: { keys: { name_key: string; card_type: string }[] };
         Returns: PriceSummary[];

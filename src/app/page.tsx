@@ -214,11 +214,15 @@ export default function Home() {
       const response = await fetch("/api/price-observations", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ action: "record", text }),
+        body: JSON.stringify({ action: "record", text, pastedAt: textPastedAt }),
       });
-      const saved: { recorded?: number; error?: string } = await response.json();
-      if (!response.ok || saved.recorded === undefined) throw new Error(saved.error || "Impossible d’enregistrer les observations.");
-      setHistoryMessage(`${saved.recorded} nouvelle(s) mise(s) actuelle(s) ajoutée(s) à l’historique partagé. Les annonces incertaines, les mises de départ et les imports identiques sont exclus.`);
+      const saved: { inserted?: number; updated?: number; unmatched?: number; duplicate?: boolean; error?: string } = await response.json();
+      if (!response.ok || saved.inserted === undefined || saved.updated === undefined ||
+          saved.unmatched === undefined || saved.duplicate === undefined) {
+        throw new Error(saved.error || "Impossible d’enregistrer les observations.");
+      }
+      setHistoryMessage(saved.duplicate ? "Import identique déjà enregistré." :
+        `${saved.inserted} mise(s) ajoutée(s), ${saved.updated} mise(s) mise(s) à jour.${saved.unmatched ? ` ${saved.unmatched} annonce(s) sans vendeur ou heure d’expiration fiable ne peuvent pas être rapprochées.` : ""} Les annonces incertaines et les mises de départ sont exclues.`);
       setHistoryRevision((revision) => revision + 1);
     } catch (error) {
       setHistoryMessage(error instanceof Error ? error.message : "Impossible d’enregistrer les observations.");

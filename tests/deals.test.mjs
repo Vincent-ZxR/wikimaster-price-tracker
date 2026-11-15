@@ -76,7 +76,7 @@ test("a personal price retains a 75 percent weight when market data is available
 });
 
 test("only valid and confidently identified current bids become shared observations", () => {
-  const card = { cardName: "  CARTE ", cardType: "ur", currentPrice: 100, confidence: "high" };
+  const card = { cardName: "  CARTE ", cardType: "ur", currentPrice: 100, confidence: "high", seller: " Vendeur ", remainingTime: "1h" };
   const cards = [
     card,
     { ...card, currentPrice: null },
@@ -87,10 +87,17 @@ test("only valid and confidently identified current bids become shared observati
     { ...card, cardName: " " },
     card,
   ];
-  assert.deepEqual(priceObservations(cards, "capture"), [
-    { capture_hash: "capture", position: 0, name_key: "carte", card_type: "UR", current_price: 100 },
-    { capture_hash: "capture", position: 7, name_key: "carte", card_type: "UR", current_price: 100 },
+  assert.deepEqual(priceObservations(cards, Date.UTC(2026, 0, 1)), [
+    { position: 0, name_key: "carte", card_type: "UR", current_price: 100, seller_key: "vendeur", expires_at: "2026-01-01T01:00:00.000Z" },
+    { position: 7, name_key: "carte", card_type: "UR", current_price: 100, seller_key: "vendeur", expires_at: "2026-01-01T01:00:00.000Z" },
   ]);
+});
+
+test("observations without a paste time or seller remain recorded without reliable identity", () => {
+  const card = { cardName: "Carte", cardType: "L", currentPrice: 10, confidence: "high", seller: null, remainingTime: "Terminée" };
+  const [observation] = priceObservations([card], null);
+  assert.equal(observation.seller_key, null);
+  assert.equal(observation.expires_at, null);
 });
 
 test("night expiration uses the paste time and local time across midnight and days", () => {
