@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseMarketplaceText } from "../src/lib/parse-marketplace.ts";
+import { compareListing, priceObservations } from "../src/lib/deals.ts";
 
 test("reads repeated names and rarity from multiline listings independently of description", () => {
   const text = [
@@ -47,7 +48,7 @@ test("recognizes an event name with a year, without using the description or sta
   assert.deepEqual(warnings, []);
 });
 
-test("warns when names disagree and handles the WikiMasters image placeholder", () => {
+test("uses the name after rarity when names disagree or the first is a placeholder", () => {
   const text = [
     "Vendu par vendeur", "WikiMasters", "UR", "Tour de France 2027",
     "description", "7 183", "2 823", "Mise de départ", "20", "Durée", "1h 02m",
@@ -57,11 +58,38 @@ test("warns when names disagree and handles the WikiMasters image placeholder", 
   const { cards, warnings } = parseMarketplaceText(text);
   assert.equal(cards[0].cardName, "Tour de France 2027");
   assert.equal(cards[1].cardName, "Nom différent");
-  assert.equal(cards[0].confidence, "low");
-  assert.equal(cards[1].confidence, "low");
-  assert.equal(warnings.length, 2);
+  assert.equal(cards[0].confidence, "high");
+  assert.equal(cards[1].confidence, "high");
+  assert.deepEqual(warnings, []);
+  const observations = priceObservations(cards, "capture");
+  assert.equal(observations.length, 1);
+  assert.equal(observations[0].name_key, "nom différent");
 });
 
+test("finished listings are parsed and current bids recorded but never flagged as deals", () => {
+  const text = [
+    "Ancien nom", "L", "Bon nom", "Mise actuelle", "10", "Durée", "Terminée",
+    "Vendu par vendeur", "Carte suivante", "UR", "Carte suivante", "Mise de départ", "100", "Durée", "2h",
+  ].join("\n");
+  const { cards, warnings } = parseMarketplaceText(text);
+  assert.equal(cards.length, 2);
+  assert.equal(cards[0].cardName, "Bon nom");
+  assert.equal(cards[0].remainingTime, "Terminée");
+  assert.equal(cards[1].cardName, "Carte suivante");
+  assert.deepEqual(warnings, []);
+  assert.equal(compareListing(cards[0], 1000).good, false);
+  assert.equal(compareListing(cards[1], 1000).good, true);
+  assert.deepEqual(priceObservations(cards, "capture"), [
+    { capture_hash: "capture", position: 0, name_key: "bon nom", card_type: "L", current_price: 10 },
+  ]);
+});
+
+test("finished starting bids are not recorded or flagged", () => {
+  const { cards } = parseMarketplaceText("Carte\nL\nCarte\nMise de départ\n10\nDurée\nTerminée");
+  assert.equal(cards.length, 1);
+  assert.equal(compareListing(cards[0], 1000).good, false);
+  assert.deepEqual(priceObservations(cards, "capture"), []);
+});
 test("keeps a card editable and warns when a multiline header is missing", () => {
   const { cards, warnings } = parseMarketplaceText(
     "Nom sans rareté\nMise actuelle\n50\nDurée\n1h 10m",

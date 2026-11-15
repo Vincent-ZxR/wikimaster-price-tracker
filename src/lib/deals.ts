@@ -8,6 +8,16 @@ export function normalizeRarity(rarity: string): string {
   return rarity.trim().toUpperCase();
 }
 
+export function matchesCardSearch(name: string, search: string): boolean {
+  const normalize = (value: string) => normalizeName(value).normalize("NFD").replace(/\p{M}/gu, "");
+  const query = normalize(search);
+  return query.length > 0 && normalize(name).includes(query);
+}
+
+export function isEnded(duration: string | null): boolean {
+  return duration?.trim().toLocaleLowerCase("fr-FR") === "terminée";
+}
+
 export function priceKey(name: string, rarity: string): string {
   return JSON.stringify([normalizeName(name), normalizeRarity(rarity)]);
 }
@@ -69,7 +79,7 @@ export function isNightExpiration(expiration: Date | null): boolean {
 }
 
 export function compareListing(
-  card: Pick<ExtractedCard, "startingPrice" | "currentPrice">,
+  card: Pick<ExtractedCard, "startingPrice" | "currentPrice"> & Partial<Pick<ExtractedCard, "remainingTime">>,
   average: number | null,
 ): { price: number; kind: "actuelle" | "départ"; discount: number; good: boolean } | null {
   const isCurrent = card.currentPrice !== null;
@@ -82,6 +92,6 @@ export function compareListing(
     price,
     kind: isCurrent ? "actuelle" : "départ",
     discount: (1 - price / average) * 100,
-    good: price * 10 <= average * 8,
+    good: !isEnded(card.remainingTime ?? null) && price * 10 <= average * 8,
   };
 }

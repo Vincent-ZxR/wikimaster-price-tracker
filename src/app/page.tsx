@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { parseMarketplaceText } from "@/lib/parse-marketplace";
-import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isNightExpiration, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
+import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isEnded, isNightExpiration, matchesCardSearch, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
 import { compareSortValues, nextSort, type Sort } from "@/lib/sort";
 import { PriceHistory } from "./price-history";
 import type { AveragePrice, ExtractedCard, PriceSummary, TrackedPrice } from "@/lib/types";
@@ -98,6 +98,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"annonces" | "prices">("annonces");
   const [listingSort, setListingSort] = useState<Sort<ListingColumn> | null>(null);
   const [priceSort, setPriceSort] = useState<Sort<PriceColumn> | null>(null);
+  const [trackingSearch, setTrackingSearch] = useState("");
   const [textPastedAt, setTextPastedAt] = useState<number | null>(null);
   const [cardsPastedAt, setCardsPastedAt] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
@@ -403,7 +404,7 @@ export default function Home() {
       summary: trackedCards.get(key)?.summary,
     });
   }
-  const sortedPrices = [...trackedCards.values()].sort((a, b) => {
+  const sortedPrices = [...trackedCards.values()].filter((price) => matchesCardSearch(price.name, trackingSearch)).sort((a, b) => {
     const column = priceSort?.column ?? "name";
     const value = (price: typeof a) => column === "name" ? price.name
       : column === "rarity" ? price.rarity
@@ -484,15 +485,15 @@ export default function Home() {
               <td>{priceEditor(card.cardName, card.cardType ?? "", `average-${card.id}`)}</td>
               <td>{average !== null ? <><strong>{average.toLocaleString("fr-FR")}</strong><span className="default-price-note">{estimate.source}{estimate.quality ? ` · fiabilité indicative ${estimate.quality}` : ""}</span></> : <span className="muted">{averagesAvailable ? "Estimation indisponible" : "Chargement…"}</span>}
                 {summary && <span className="default-price-note">{summary.sample_count} observation(s) récentes{summary.sample_count < 5 ? " · 5 pour estimer les mises" : ""}</span>}</td>
-              <td>{comparison ? <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span> : <span className="muted">{!averagesAvailable ? "Prix indisponibles" : average !== null ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
+              <td>{isEnded(card.remainingTime) ? <span className="muted">Terminée</span> : comparison ? <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span> : <span className="muted">{!averagesAvailable ? "Prix indisponibles" : average !== null ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
               <td><div className="flags">{night ? <span className="flag night-flag">Expire entre 3h et 7h</span> : <span className="muted">—</span>}</div></td>
               <td><label className="sr-only" htmlFor={`time-${card.id}`}>Durée au collage</label><input id={`time-${card.id}`} className="table-input time-input" value={card.remainingTime ?? ""} onChange={(event) => updateCard(card.id, "remainingTime", event.target.value)} />
                 {expiration && <span className="expiration">Expire le {expiration.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>}
-                {cardsPastedAt !== null && !expiration && <span className="expiration">Durée invalide</span>}</td>
+                {cardsPastedAt !== null && !expiration && !isEnded(card.remainingTime) && <span className="expiration">Durée invalide</span>}</td>
               <td><button className="remove-row" type="button" aria-label={`Retirer ${card.cardName || "l’annonce"}`} onClick={() => setCards((current) => current.filter((entry) => entry.id !== card.id))}>×</button></td>
             </tr>)}</tbody>
           </table></div>}
-        <p className="footnote">Bonne affaire : prix ≤ −20 % du prix de référence, indicatif et non garanti. Les mises sont des enchères en cours, pas des prix de vente. La fiabilité dépend du nombre et de la dispersion des observations, sans garantie statistique. Légendaire : 286 par défaut en l’absence de données. Expiration estimée selon l’heure du collage et le fuseau local. Les annonces restent temporaires.</p>
+        <p className="footnote">Bonne affaire : prix ≤ −20 % du prix de référence, indicatif et non garanti ; les annonces terminées sont exclues. Les mises ne sont pas nécessairement des prix de vente. La fiabilité dépend du nombre et de la dispersion des observations, sans garantie statistique. Légendaire : 286 par défaut en l’absence de données. Expiration estimée selon l’heure du collage et le fuseau local. Les annonces restent temporaires.</p>
         {cards.length > 0 && cardsPastedAt === null && <p className="notice">Heure du collage inconnue : collez à nouveau le texte pour calculer les expirations.</p>}
       </section>
 
@@ -500,11 +501,13 @@ export default function Home() {
 
       {activeTab === "prices" && <section className="saved-section" aria-labelledby="saved-heading">
         <div className="section-heading"><div><h1 id="saved-heading">Suivi de prix</h1><p>L’historique est disponible dès la première mise actuelle enregistrée.</p></div>{currentState?.status === "ready" && currentTracking && !currentTracking.error && <span className="muted">{sortedPrices.length} carte(s)</span>}</div>
+        <label className="sr-only" htmlFor="tracking-search">Rechercher une carte</label>
+        <input id="tracking-search" className="tracking-search" type="search" value={trackingSearch} placeholder="Rechercher une carte…" onChange={(event) => { setTrackingSearch(event.target.value); setSelectedCard(null); }} />
         {!session && <div className="empty-state">Connectez-vous pour consulter le suivi de prix.</div>}
         {session && !currentTracking && <p className="notice" role="status">Chargement des cartes suivies…</p>}
         {currentTracking?.error && <p className="notice error" role="alert">{currentTracking.error}{" "}
           <button type="button" className="text-button" onClick={() => setTrackingRetry((value) => value + 1)}>Réessayer</button></p>}
-        {session && currentState?.status === "ready" && currentTracking && (sortedPrices.length === 0 ? <div className="empty-state">{currentTracking.error ? "Les cartes suivies sont indisponibles." : "Aucune carte suivie. Analysez des mises actuelles reconnues ou renseignez un prix moyen ; les mises de départ ne sont pas enregistrées."}</div> :
+        {session && currentState?.status === "ready" && currentTracking && (sortedPrices.length === 0 ? <div className="empty-state">{currentTracking.error ? "Les cartes suivies sont indisponibles." : !trackingSearch.trim() ? "Recherchez une carte pour afficher les résultats." : trackedCards.size === 0 ? "Aucune carte suivie. Analysez des mises actuelles reconnues ou renseignez un prix moyen." : "Aucune carte ne correspond à cette recherche."}</div> :
           <div className="table-scroll"><table className="review-table saved-table">
             <thead><tr>
               <SortHeader label="Carte" column="name" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />

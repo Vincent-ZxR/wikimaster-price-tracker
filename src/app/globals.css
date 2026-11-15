@@ -166,6 +166,7 @@ h2 { font-size: 18px; }
 .notice.error { color: #f0b29e; }
 .signin-form { display: flex; gap: 8px; max-width: 520px; margin-top: 12px; }
 .signin-form input { flex: 1; min-width: 0; height: 40px; padding: 0 10px; }
+.tracking-search { width: min(100%, 400px); height: 40px; margin-bottom: 14px; padding: 0 10px; border: 1px solid #39433b; border-radius: 5px; background: #0a0d0b; color: var(--foreground); }
 .saved-table { max-width: 1100px; }
 .card-history-button { padding: 0; border: 0; background: none; color: var(--accent); cursor: pointer; font-weight: 700; text-align: left; }
 .card-history-button:hover { text-decoration: underline; }

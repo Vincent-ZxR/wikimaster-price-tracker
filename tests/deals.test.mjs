@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isNightExpiration, priceKey, priceObservations } from "../src/lib/deals.ts";
+import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isNightExpiration, matchesCardSearch, priceKey, priceObservations } from "../src/lib/deals.ts";
 
 test("starting bids are good deals at or below 20% under the average", () => {
   assert.equal(compareListing({ startingPrice: 800, currentPrice: null }, 1000).good, true);
@@ -34,6 +34,13 @@ test("reference keys ignore case and extra whitespace but distinguish rarity", (
   assert.equal(priceKey("  PAUL   SEIXAS ", "ur"), priceKey("Paul Seixas", "UR"));
   assert.notEqual(priceKey("Paul Seixas", "UR"), priceKey("Paul Seixas", "L"));
   assert.equal(priceKey("Pogac\u030car", "L"), priceKey("Pogačar", "l"));
+});
+
+test("search only matches nonempty names, ignoring case, accents and surrounding whitespace", () => {
+  assert.equal(matchesCardSearch("Pauline Ferrand-Prévot", "  PREVOT "), true);
+  assert.equal(matchesCardSearch("Pauline Ferrand-Prévot", "pauline"), true);
+  assert.equal(matchesCardSearch("Pauline Ferrand-Prévot", "merckx"), false);
+  assert.equal(matchesCardSearch("Pauline Ferrand-Prévot", "   "), false);
 });
 
 test("legendary default is 286, unless a personal average exists", () => {

@@ -3,25 +3,21 @@ import type { ExtractedCard } from "./types";
 type ParsedCard = Omit<ExtractedCard, "id">;
 type Header = { type: string; name: string; uncertain: boolean };
 
-const LISTING = /Mise\s+(de\s+départ|actuelle)\s*([\d\u00a0\u202f ]+?)\s*Durée\s*((?:\d+\s*[jdhms]\s*)+)/giu;
+const LISTING = /Mise\s+(de\s+départ|actuelle)\s*([\d\u00a0\u202f ]+?)\s*Durée\s*((?:\d+\s*[jdhms]\s*)+|Terminée(?!\p{L}))/giu;
 const PRICE_LABEL = /Mise\s+(?:de\s+départ|actuelle)/giu;
 const RARITY = /^(?:UR|SR|PC|L|R|C)$/u;
 
 function findLineHeader(segment: string): Header | null {
   const lines = segment.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
 
-  for (let index = lines.length - 2; index > 0; index--) {
+  for (let index = lines.length - 2; index >= 0; index--) {
     if (!RARITY.test(lines[index])) continue;
-    const first = lines[index - 1].replace(/\s+/gu, " ").normalize("NFC");
     const second = lines[index + 1].replace(/\s+/gu, " ").normalize("NFC");
-    const firstIsName =
-      first.toLocaleLowerCase("fr-FR") !== "wikimasters" &&
-      !/^vendu\s+par\b/iu.test(first);
     if (!second || RARITY.test(second) || /^\d[\d\s]*$/u.test(second)) continue;
     return {
       name: second,
       type: lines[index],
-      uncertain: !firstIsName || first !== second,
+      uncertain: false,
     };
   }
   return null;
