@@ -60,6 +60,32 @@ function rarityClass(rarity: string | null): string {
   return normalized === "L✦" ? "rarity-L-shiny" : isValidRarity(normalized) ? `rarity-${normalized}` : "";
 }
 
+type DataStatus = "ready" | "loading" | "error" | "signed-out";
+
+function ReferencePrice({ estimate, personal, summary, available, personalStatus, observationStatus }: {
+  estimate: ReturnType<typeof estimatePrice>;
+  personal: number | null;
+  summary: PriceSummary | undefined;
+  available: boolean;
+  personalStatus: DataStatus;
+  observationStatus: DataStatus;
+}) {
+  const statusText = (status: DataStatus) =>
+    status === "loading" ? "Chargement…" : status === "error" ? "Indisponible" : "Connexion requise";
+  const manual = personalStatus === "ready" ? personal === null ? "—" : personal.toLocaleString("fr-FR") : statusText(personalStatus);
+  const observations = observationStatus !== "ready" ? statusText(observationStatus)
+    : estimate.market === null ? `— (${summary?.sample_count ?? 0}/5)`
+    : `${estimate.market.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} (${summary?.sample_count ?? 0} obs.)`;
+  return <>
+    {available && estimate.value !== null
+      ? <><strong>{estimate.value.toLocaleString("fr-FR")}</strong><span className="default-price-note">{estimate.source}{estimate.quality ? ` · fiabilité indicative ${estimate.quality}` : ""}</span></>
+      : <span className="muted">{available ? "Estimation indisponible"
+        : personalStatus === "loading" || observationStatus === "loading" ? "Chargement…" : "Prix indisponible"}</span>}
+    <span className="default-price-note">Manuel : {manual}</span>
+    <span className="default-price-note">Observations : {observations}</span>
+  </>;
+}
+
 function CopyNameButton({ name }: { name: string }) {
   const [feedback, setFeedback] = useState<{ name: string; success: boolean } | null>(null);
   const visibleFeedback = feedback?.name === name ? feedback : null;
@@ -265,6 +291,10 @@ export default function Home() {
     historyState.query === historyQuery && historyState.revision === historyRevision ? historyState : null;
   const summaries = new Map((currentHistory?.summaries ?? []).map((summary) => [priceKey(summary.name_key, summary.card_type), summary]));
   const averagesAvailable = authReady && (!session || (currentState?.status === "ready" && (historyQuery === "[]" || currentHistory !== null)));
+  const personalStatus: DataStatus = !authReady ? "loading" : !session ? "signed-out"
+    : !currentState ? "loading" : currentState.status === "error" ? "error" : "ready";
+  const observationStatus: DataStatus = !authReady ? "loading" : !session ? "signed-out"
+    : !currentHistory ? "loading" : currentHistory.error ? "error" : "ready";
   useEffect(() => {
     if (!session || activeTab !== "prices") return;
     let active = true;
@@ -463,14 +493,14 @@ export default function Home() {
               <SortHeader label="Durée au collage" column="duration" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <th><span className="sr-only">Supprimer</span></th>
             </tr></thead>
-            <tbody>{sortedRows.map(({ card, average, estimate, summary, comparison, expiration, night }) => <tr key={card.id}>
+            <tbody>{sortedRows.map(({ card, average, personal, estimate, summary, comparison, expiration, night }) => <tr key={card.id}>
               <td><div className="name-cell"><strong>{card.cardName || "Nom non reconnu"}</strong><CopyNameButton name={card.cardName} /></div></td>
               <td><span className={`rarity-badge ${rarityClass(card.cardType)}`}>{card.cardType || "—"}</span></td>
               <td>{card[card.bidKind] !== null ? card[card.bidKind]?.toLocaleString("fr-FR") : "—"}</td>
               <td><span className="bid-kind">{card.bidKind === "currentPrice" ? "Actuelle" : "Départ"}</span></td>
               <td>{priceEditor(card.cardName, card.cardType ?? "", `average-${card.id}`)}</td>
-              <td>{average !== null ? <><strong>{average.toLocaleString("fr-FR")}</strong><span className="default-price-note">{estimate.source}{estimate.quality ? ` · fiabilité indicative ${estimate.quality}` : ""}</span></> : <span className="muted">{averagesAvailable ? "Estimation indisponible" : "Chargement…"}</span>}
-                {summary && <span className="default-price-note">{summary.sample_count} observation(s) récentes{summary.sample_count < 5 ? " · 5 pour estimer les mises" : ""}</span>}</td>
+              <td><ReferencePrice estimate={estimate} personal={personal} summary={summary} available={averagesAvailable}
+                personalStatus={personalStatus} observationStatus={observationStatus} /></td>
               <td>{isEnded(card.remainingTime) ? <span className="muted">Terminée</span> : comparison ? <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span> : <span className="muted">{!averagesAvailable ? "Prix indisponibles" : average !== null ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
               <td><div className="flags">{night ? <span className="flag night-flag">Expire entre 3h et 7h</span> : <span className="muted">—</span>}</div></td>
               <td>{card.remainingTime || "—"}
@@ -513,10 +543,8 @@ export default function Home() {
                   onClick={toggleHistory}>{price.name}</button><CopyNameButton name={price.name} /></div></td>
                 <td><span className={`rarity-badge ${rarityClass(price.rarity)}`}>{price.rarity}</span></td>
                 <td>{priceEditor(price.name, price.rarity, `saved-${key}`)}</td>
-                <td>{currentTracking.error ? <span className="muted">Indisponible</span> : estimate.value !== null
-                  ? <><strong>{estimate.value.toLocaleString("fr-FR")}</strong><span className="default-price-note">{estimate.source}{estimate.quality ? ` · fiabilité indicative ${estimate.quality}` : ""}</span></>
-                  : <span className="muted">Estimation indisponible</span>}
-                  {!currentTracking.error && price.summary && <span className="default-price-note">{price.summary.sample_count} observation(s) récentes{price.summary.sample_count < 5 ? " · 5 pour estimer les mises" : ""}</span>}</td>
+                <td><ReferencePrice estimate={estimate} personal={price.personal} summary={price.summary} available={!currentTracking.error}
+                  personalStatus="ready" observationStatus={currentTracking.error ? "error" : "ready"} /></td>
                 <td><button type="button" className="card-history-button" aria-expanded={isSelected}
                   aria-controls={isSelected ? "price-history" : undefined} aria-label={`${isSelected ? "Fermer" : "Voir"} l’historique de ${price.name} (${price.rarity})`}
                   onClick={toggleHistory}>{isSelected ? "Fermer" : "Voir l’historique"}</button></td>

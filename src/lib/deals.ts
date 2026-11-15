@@ -72,7 +72,7 @@ export function estimatePrice(rarity: string | null, personal: number | null, su
   const quality = market === null ? null
     : summary && summary.sample_count >= 20 && summary.upper_quartile <= summary.lower_quartile * 2
       ? "modérée" : "faible";
-  return { value, source, quality };
+  return { value, market, source, quality };
 }
 
 export function expirationAt(pastedAt: number | null, duration: string | null): Date | null {

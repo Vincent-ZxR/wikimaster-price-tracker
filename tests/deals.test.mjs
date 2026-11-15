@@ -65,8 +65,11 @@ test("market estimates need five observations and replace only the legendary def
   const summary = { sample_count: 4, lower_quartile: 40, upper_quartile: 120 };
   assert.equal(estimatePrice("UR", null, { ...summary, sample_count: 1 }).value, null);
   assert.equal(estimatePrice("UR", null, summary).value, null);
+  assert.equal(estimatePrice("L", null, summary).market, null);
   assert.equal(estimatePrice("L", null, summary).value, 286);
-  assert.equal(estimatePrice("L", null, { ...summary, sample_count: 5 }).value, 120);
+  const estimate = estimatePrice("L", null, { ...summary, sample_count: 5, upper_quartile: 120.25 });
+  assert.equal(estimate.market, 120.25);
+  assert.equal(estimate.value, 120);
   assert.equal(estimatePrice("UR", null, { ...summary, sample_count: 5 }).quality, "faible");
 });
 
@@ -74,7 +77,7 @@ test("a personal price retains a 75 percent weight when market data is available
   const summary = { sample_count: 20, lower_quartile: 80, upper_quartile: 160 };
   assert.equal(estimatePrice("UR", 200, undefined).value, 200);
   assert.deepEqual(estimatePrice("UR", 200, summary), {
-    value: 190, source: "personnel + observations", quality: "modérée",
+    value: 190, market: 160, source: "personnel + observations", quality: "modérée",
   });
   assert.equal(estimatePrice("UR", 200, { ...summary, lower_quartile: 79 }).quality, "faible");
 });
