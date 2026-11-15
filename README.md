@@ -6,21 +6,21 @@ WikiTrack compare les annonces du marché WikiMasters à vos prix moyens. L'anal
 
 1. Copiez le texte du marché WikiMasters, collez-le dans la zone d'import au-dessus du tableau et cliquez sur **Analyser**. Chaque collage remplace le texte précédent et chaque analyse remplace les annonces affichées.
 2. Vérifiez les noms, raretés, mises et durées. Les annonces sont affichées en lecture seule : pour les corriger, modifiez le texte importé et relancez l'analyse. Le nom situé après la rareté est utilisé ; les formats incertains sont signalés.
-3. Connectez-vous par lien email pour saisir un prix moyen entier positif et cliquez sur **OK**. Une même moyenne s'applique à toutes les annonces ayant le même nom (insensible à la casse et aux espaces supplémentaires) et la même rareté. Chaque saisie est conservée dans un historique personnel ; la dernière valeur est utilisée pour le calcul. Dans **Suivi de prix**, recherchez un nom pour afficher uniquement les cartes correspondantes, consulter leur prix de référence et modifier vos moyennes personnelles. Cliquez sur un nom pour afficher deux courbes et leurs détails : les mises enregistrées et vos moyennes personnelles datées, même lorsqu'elles ne sont plus prises en compte dans l'estimation. Les dates sont affichées dans le fuseau local. Les points de mises correspondent à des enchères potentiellement différentes, non à des prix de vente. Pour les cartes sans moyenne personnelle, le nom apparaît sous sa forme normalisée.
+3. Entrez le mot de passe partagé du groupe pour saisir un prix moyen entier positif et cliquez sur **OK**. Une même moyenne s'applique à tous les membres et à toutes les annonces ayant le même nom (insensible à la casse et aux espaces supplémentaires) et la même rareté. Chaque saisie est conservée dans un historique partagé ; la dernière valeur est utilisée pour le calcul. Dans **Suivi de prix**, recherchez un nom pour afficher uniquement les cartes correspondantes, consulter leur prix de référence et modifier les moyennes communes. Cliquez sur un nom pour afficher deux courbes et leurs détails : les mises enregistrées et les moyennes partagées datées, même lorsqu'elles ne sont plus prises en compte dans l'estimation. Les dates sont affichées dans le fuseau local. Les points de mises correspondent à des enchères potentiellement différentes, non à des prix de vente. Pour les cartes sans moyenne enregistrée, le nom apparaît sous sa forme normalisée.
 
-Lors de l'activation de l'historique des moyennes, la dernière valeur personnelle existante est conservée avec une date inconnue : les saisies antérieures et leurs dates n'étaient pas enregistrées et ne peuvent pas être reconstituées. Cette valeur figure dans le détail, mais pas sur la courbe. Les nouvelles saisies sont horodatées et ajoutées sans effacer les précédentes.
+Lors de la migration vers les données partagées, si plusieurs comptes avaient une moyenne différente pour une carte, la dernière valeur datée est conservée. Les moyennes et historiques antérieurs sont regroupés ; les anciennes valeurs sans date ne peuvent pas être ordonnées précisément. Les nouvelles saisies sont horodatées et ajoutées sans effacer les précédentes.
 
-Les légendaires shiny sont reconnues sous la rareté **L✦**, distincte de **L** : leurs prix personnels et observations sont séparés. Les anciens imports ne peuvent pas être reclassés automatiquement.
+Les légendaires shiny sont reconnues sous la rareté **L✦**, distincte de **L** : leurs moyennes et observations sont séparées. Les anciens imports ne peuvent pas être reclassés automatiquement.
 
 Une bonne affaire est une mise de départ ou actuelle au moins 20 % sous le **prix de référence**, sauf si sa durée indique « Terminée ». Pour ces annonces, la colonne comparaison affiche aussi la mise maximale à 80 % du prix de référence, arrondie à l'entier inférieur. Il s'agit d'une indication, pas d'une garantie : les mises observées ne sont pas nécessairement des prix de vente finaux et le minimum autorisé par le jeu peut dépasser cette limite.
 
-Lorsqu'un utilisateur connecté analyse un texte, les mises **actuelles** positives dont le nom et la rareté ont été reconnus avec certitude sont enregistrées automatiquement dans un historique partagé entre les comptes connectés, y compris pour les annonces terminées. Le nom après la rareté est utilisé même s'il diffère du premier. Les mises de départ, les annonces incertaines et les imports textuellement identiques sont exclus. Une analyse sans connexion ne contribue pas à l'historique.
+Lorsqu'un membre du groupe analyse un texte, les mises **actuelles** positives dont le nom et la rareté ont été reconnus avec certitude sont enregistrées automatiquement dans l'historique partagé, y compris pour les annonces terminées. Le nom après la rareté est utilisé même s'il diffère du premier. Les mises de départ, les annonces incertaines et les imports textuellement identiques sont exclus. Une analyse sans accès au groupe ne contribue pas à l'historique.
 
-Pour les nouveaux imports, le vendeur et l'expiration estimée permettent de rapprocher deux annonces de même nom, rareté et vendeur dont les expirations diffèrent d'au plus une minute. La mise de la capture la plus récente remplace alors la précédente, y compris dans l'historique et l'estimation. L'expiration reste celle estimée à la première observation pour éviter les décalages cumulés. Pour « Terminée », l'expiration est supposée égale à l'heure du collage : une annonce terminée collée plus d'une minute après son expiration estimée ne sera donc pas rapprochée. Si le vendeur ou l'heure du collage manque, la mise est enregistrée sans rapprochement. Coller à nouveau le texte après toute modification pour disposer d'une heure de collage. Les anciennes observations, qui ne contiennent ni vendeur ni expiration, sont conservées mais ne peuvent pas être rapprochées. Le texte complet n'est pas conservé ; le vendeur normalisé est partagé entre les comptes connectés. Le rapprochement reste approximatif : des doublons ou de rares regroupements incorrects sont possibles.
+Pour les nouveaux imports, le vendeur et l'expiration estimée permettent de rapprocher deux annonces de même nom, rareté et vendeur dont les expirations diffèrent d'au plus une minute. La mise de la capture la plus récente remplace alors la précédente, y compris dans l'historique et l'estimation. L'expiration reste celle estimée à la première observation pour éviter les décalages cumulés. Pour « Terminée », l'expiration est supposée égale à l'heure du collage : une annonce terminée collée plus d'une minute après son expiration estimée ne sera donc pas rapprochée. Si le vendeur ou l'heure du collage manque, la mise est enregistrée sans rapprochement. Coller à nouveau le texte après toute modification pour disposer d'une heure de collage. Les anciennes observations, qui ne contiennent ni vendeur ni expiration, sont conservées mais ne peuvent pas être rapprochées. Le texte complet n'est pas conservé ; le vendeur normalisé est partagé dans le groupe. Le rapprochement reste approximatif : des doublons ou de rares regroupements incorrects sont possibles.
 
 Une carte apparaît dans **Suivi de prix** dès sa première mise actuelle enregistrée. Utilisez **Voir l'historique** pour consulter cette mise et sa date ; le seuil de 5 observations concerne uniquement l'estimation des mises, pas l'affichage de l'historique.
 
-Pour chaque nom et rareté, l'estimation utilise au maximum les 200 dernières observations des 90 derniers jours. À partir de 5 observations, elle prend leur 75e percentile (le quartile supérieur) : les mises les plus basses ont ainsi moins d'influence, sans supposer de distribution particulière. Si un prix moyen personnel existe aussi, le prix de référence est calculé avec 75 % de la **dernière** moyenne personnelle et 25 % de l'estimation des observations. Les moyennes précédentes restent disponibles dans l'historique mais ne participent pas au calcul actuel. Avec moins de 5 observations, seul le prix personnel est utilisé. Sans prix personnel ni suffisamment d'observations, la référence est 286 pour les légendaires classiques et shiny (L et L✦), et indisponible pour les autres raretés.
+Pour chaque nom et rareté, l'estimation utilise au maximum les 200 dernières observations des 90 derniers jours. À partir de 5 observations, elle prend leur 75e percentile (le quartile supérieur) : les mises les plus basses ont ainsi moins d'influence, sans supposer de distribution particulière. Si une moyenne manuelle partagée existe aussi, le prix de référence est calculé avec 75 % de la **dernière** moyenne partagée et 25 % de l'estimation des observations. Les moyennes précédentes restent disponibles dans l'historique mais ne participent pas au calcul actuel. Avec moins de 5 observations, seule la moyenne partagée est utilisée. Sans moyenne partagée ni suffisamment d'observations, la référence est 286 pour les légendaires classiques et shiny (L et L✦), et indisponible pour les autres raretés.
 
 La colonne **Prix de référence** affiche aussi séparément la dernière moyenne manuelle et l'estimation issue des observations ; un tiret indique qu'aucune moyenne manuelle n'est enregistrée ou que le seuil de 5 observations n'est pas atteint. Le nombre principal reste le prix de référence utilisé pour le tri et les comparaisons.
 
@@ -32,7 +32,7 @@ Cliquez sur un en-tête pour trier les annonces ou les prix moyens ; un deuxièm
 
 Le bouton **Copier** à côté d'un nom le place dans le presse-papiers ; le navigateur peut demander une autorisation.
 
-Les annonces affichées et le texte importé restent temporaires dans le navigateur et disparaissent au rechargement. Les prix moyens personnels et les observations de mises actuelles partagées sont enregistrés dans Supabase. L'ancienne table `market_listings` et ses données sont conservées, mais la migration désactive l'ajout de nouvelles annonces. Les lots sont limités à 1 000 annonces.
+Les annonces affichées et le texte importé restent temporaires dans le navigateur et disparaissent au rechargement. Les prix moyens et les observations de mises actuelles partagés sont enregistrés dans Supabase. L'ancienne table `market_listings` et ses données sont conservées, mais la migration désactive l'ajout de nouvelles annonces. Les lots sont limités à 1 000 annonces.
 
 La police Poppins est distribuée sous la [SIL Open Font License](./public/fonts/OFL.txt).
 
@@ -46,11 +46,10 @@ La police Poppins est distribuée sous la [SIL Open Font License](./public/fonts
    - [`supabase/migrations/20261116020000_average_price_history.sql`](./supabase/migrations/20261116020000_average_price_history.sql)
    - [`supabase/migrations/20261116030000_match_price_observations.sql`](./supabase/migrations/20261116030000_match_price_observations.sql)
    - [`supabase/migrations/20261116040000_legendary_shiny.sql`](./supabase/migrations/20261116040000_legendary_shiny.sql)
-2. Dans **Authentication → Providers**, activez la connexion par email.
-3. Dans **Authentication → URL Configuration**, définissez l'URL du site et ajoutez les URL de redirection nécessaires, notamment celle de Vercel.
-4. Récupérez l'URL du projet et la clé anon/publishable dans les paramètres API.
+   - [`supabase/migrations/20261117000000_shared_access.sql`](./supabase/migrations/20261117000000_shared_access.sql)
+2. Récupérez l'URL du projet et la clé **service_role** dans les paramètres API. Cette clé reste exclusivement côté serveur.
 
-Les règles RLS limitent les prix moyens et leur historique à leur propriétaire et rendent les observations de mises accessibles aux utilisateurs authentifiés. Pour un projet existant, appliquez les migrations manquantes dans l'ordre ; les anciennes annonces ne sont pas supprimées. La conservation des moyennes successives nécessite `20261116020000_average_price_history.sql`.
+La dernière migration regroupe les moyennes et leurs historiques de tous les comptes : en cas de conflit, la valeur actuelle la plus récemment datée est retenue. Les historiques existants restent conservés. Les règles RLS et les privilèges SQL interdisent l'accès direct aux données ; seule l'application, après vérification du mot de passe partagé, utilise la clé serveur. Pour un projet existant, mettez l'ancienne application en pause, appliquez les migrations manquantes dans l'ordre, puis déployez cette version avant de rouvrir l'accès : la dernière migration change le schéma et les anciennes versions ne sont plus compatibles. Les anciennes annonces ne sont pas supprimées.
 
 ## Configurer et exécuter l'application
 
@@ -58,11 +57,12 @@ Copiez `.env.example` vers `.env.local` et renseignez :
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://votre-projet.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=votre-cle-anon-ou-publishable
-ALLOWED_EMAILS=votre-adresse@example.com
+SUPABASE_SERVICE_ROLE_KEY=votre-cle-service_role
+SHARED_ACCESS_PASSWORD=un-mot-de-passe-long-a-partager-avec-vos-amis
+APP_SESSION_SECRET=une-cle-aleatoire-de-64-caracteres-hexadecimaux
 ```
 
-`ALLOWED_EMAILS` est une liste d'adresses autorisées, séparées par des virgules. Après création de votre compte, désactivez les inscriptions publiques dans Supabase Auth. La clé anon/publishable est destinée au navigateur ; les règles RLS protègent les données.
+Générez une valeur aléatoire pour `APP_SESSION_SECRET` avec `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Choisissez un mot de passe partagé d'au moins 16 caractères et transmettez-le uniquement à vos amis. La clé `service_role` contourne les règles RLS : ne la préfixez jamais par `NEXT_PUBLIC_` et ne la communiquez pas aux membres du groupe. L'accès reste déverrouillé dans le navigateur pendant 30 jours ; le bouton **Verrouiller** met fin à la session sur l'appareil actuel. Modifier le mot de passe invalide aussi les sessions existantes.
 
 ```bash
 npm install
@@ -70,4 +70,4 @@ npm run dev
 npm test
 ```
 
-Ouvrez [http://localhost:3000](http://localhost:3000). Pour Vercel, importez le dépôt, ajoutez les trois variables d'environnement et configurez l'URL de redirection Supabase. Les offres gratuites de Vercel et Supabase sont soumises à leurs conditions et limites respectives.
+Ouvrez [http://localhost:3000](http://localhost:3000). Pour Vercel, importez le dépôt et ajoutez les quatre variables d'environnement. Les offres gratuites de Vercel et Supabase sont soumises à leurs conditions et limites respectives.

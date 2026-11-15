@@ -36,7 +36,7 @@ test("both series share the time and price axes and exclude undated averages", (
   assert.equal(priceChart([], [{ recorded_at: null, average_price: 100 }]), null);
 });
 
-test("dated personal averages remain visible without any current bids", () => {
+test("dated shared averages remain visible without any current bids", () => {
   const chart = priceChart([], [{ recorded_at: "2026-01-01T00:00:00Z", average_price: 100 }]);
   assert.deepEqual(chart.averagePoints, [{ x: 400, y: 100 }]);
   assert.deepEqual(chart.bidPoints, []);

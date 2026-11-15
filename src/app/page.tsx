@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import type { Session } from "@supabase/supabase-js";
-import { createSupabaseBrowserClient } from "@/lib/supabase";
 import { parseMarketplaceText } from "@/lib/parse-marketplace";
 import { compareListing, effectiveAveragePrice, estimatePrice, expirationAt, isEnded, isNightExpiration, isValidRarity, matchesCardSearch, normalizeName, normalizeRarity, priceKey } from "@/lib/deals";
 import { compareSortValues, nextSort, type Sort } from "@/lib/sort";
@@ -10,16 +8,16 @@ import { PriceHistory } from "./price-history";
 import type { AveragePrice, ExtractedCard, PriceSummary, TrackedPrice } from "@/lib/types";
 
 type PricesState =
-  | { userId: string; token: string; status: "ready"; prices: AveragePrice[] }
-  | { userId: string; token: string; status: "error"; message: string };
+  | { status: "ready"; prices: AveragePrice[] }
+  | { status: "error"; message: string };
 
-type ListingColumn = "name" | "rarity" | "price" | "kind" | "personal" | "average" | "comparison" | "alerts" | "duration";
-type PriceColumn = "name" | "rarity" | "personal" | "reference";
+type ListingColumn = "name" | "rarity" | "price" | "kind" | "manual" | "average" | "comparison" | "alerts" | "duration";
+type PriceColumn = "name" | "rarity" | "manual" | "reference";
 
 type ListingRow = {
   card: ExtractedCard;
   average: number | null;
-  personal: number | null;
+  manual: number | null;
   summary: PriceSummary | undefined;
   estimate: ReturnType<typeof estimatePrice>;
   expiration: Date | null;
@@ -33,7 +31,7 @@ function listingSortValue(row: ListingRow, column: ListingColumn): string | numb
     case "rarity": return normalizeRarity(row.card.cardType ?? "") || null;
     case "price": return row.card[row.card.bidKind];
     case "kind": return row.card.bidKind === "currentPrice" ? "Actuelle" : "Départ";
-    case "personal": return row.personal;
+    case "manual": return row.manual;
     case "average": return row.average;
     case "comparison": return row.comparison ? -row.comparison.discount : null;
     case "alerts": return row.night ? 1 : null;
@@ -60,19 +58,19 @@ function rarityClass(rarity: string | null): string {
   return normalized === "L✦" ? "rarity-L-shiny" : isValidRarity(normalized) ? `rarity-${normalized}` : "";
 }
 
-type DataStatus = "ready" | "loading" | "error" | "signed-out";
+type DataStatus = "ready" | "loading" | "error";
 
-function ReferencePrice({ estimate, personal, summary, available, personalStatus, observationStatus }: {
+function ReferencePrice({ estimate, manual, summary, available, manualStatus, observationStatus }: {
   estimate: ReturnType<typeof estimatePrice>;
-  personal: number | null;
+  manual: number | null;
   summary: PriceSummary | undefined;
   available: boolean;
-  personalStatus: DataStatus;
+  manualStatus: DataStatus;
   observationStatus: DataStatus;
 }) {
   const statusText = (status: DataStatus) =>
-    status === "loading" ? "Chargement…" : status === "error" ? "Indisponible" : "Connexion requise";
-  const manual = personalStatus === "ready" ? personal === null ? "—" : personal.toLocaleString("fr-FR") : statusText(personalStatus);
+    status === "loading" ? "Chargement…" : "Indisponible";
+  const manualText = manualStatus === "ready" ? manual === null ? "—" : manual.toLocaleString("fr-FR") : statusText(manualStatus);
   const observations = observationStatus !== "ready" ? statusText(observationStatus)
     : estimate.market === null ? `— (${summary?.sample_count ?? 0}/5)`
     : `${estimate.market.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} (${summary?.sample_count ?? 0} obs.)`;
@@ -80,8 +78,8 @@ function ReferencePrice({ estimate, personal, summary, available, personalStatus
     {available && estimate.value !== null
       ? <><strong>{estimate.value.toLocaleString("fr-FR")}</strong><span className="default-price-note">{estimate.source}{estimate.quality ? ` · fiabilité indicative ${estimate.quality}` : ""}</span></>
       : <span className="muted">{available ? "Estimation indisponible"
-        : personalStatus === "loading" || observationStatus === "loading" ? "Chargement…" : "Prix indisponible"}</span>}
-    <span className="default-price-note">Manuel : {manual}</span>
+        : manualStatus === "loading" || observationStatus === "loading" ? "Chargement…" : "Prix indisponible"}</span>}
+    <span className="default-price-note">Manuel : {manualText}</span>
     <span className="default-price-note">Observations : {observations}</span>
   </>;
 }
@@ -112,11 +110,9 @@ function CopyNameButton({ name }: { name: string }) {
 }
 
 export default function Home() {
-  const [supabase] = useState(createSupabaseBrowserClient);
-  const [session, setSession] = useState<Session | null>(null);
-  const [authReady, setAuthReady] = useState(!supabase);
-  const [email, setEmail] = useState("");
-  const [emailSent, setEmailSent] = useState(false);
+  const [authorized, setAuthorized] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [password, setPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [text, setText] = useState("");
@@ -136,88 +132,98 @@ export default function Home() {
   const [recording, setRecording] = useState(false);
   const [historyRevision, setHistoryRevision] = useState(0);
   const [historyState, setHistoryState] = useState<{
-    userId: string; token: string; query: string; revision: number;
+    query: string; revision: number;
     summaries: PriceSummary[]; error: string | null;
   } | null>(null);
   const [trackedState, setTrackedState] = useState<{
-    userId: string; token: string; revision: number; retry: number;
+    revision: number; retry: number;
     tracked: TrackedPrice[]; error: string | null;
   } | null>(null);
   const [trackingRetry, setTrackingRetry] = useState(0);
-  const [selectedCard, setSelectedCard] = useState<{ userId: string; name: string; rarity: string } | null>(null);
+  const [selectedCard, setSelectedCard] = useState<{ name: string; rarity: string } | null>(null);
 
   useEffect(() => {
-    if (!supabase) return;
     let active = true;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    void fetch("/api/access").then(async (response) => {
+      const result: { authorized?: boolean; error?: string } = await response.json();
+      if (!response.ok || result.authorized === undefined) {
+        throw new Error(result.error || "Impossible de vérifier l’accès partagé.");
+      }
       if (active) {
-        setSession(nextSession);
+        setAuthorized(result.authorized);
         setAuthReady(true);
       }
-    });
-    void supabase.auth.getSession().then(({ data, error }) => {
+    }).catch((error: unknown) => {
       if (!active) return;
-      if (error) setAuthMessage("Impossible de vérifier la connexion. Actualisez la page.");
-      setSession(data.session);
+      setAuthMessage(error instanceof Error ? error.message : "Impossible de vérifier l’accès partagé.");
       setAuthReady(true);
     });
     return () => {
       active = false;
-      subscription.unsubscribe();
     };
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
-    if (!session) return;
+    if (!authorized) return;
     let active = true;
-    const { id: userId } = session.user;
-    const token = session.access_token;
     void (async () => {
       try {
-        const response = await fetch("/api/average-prices", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await fetch("/api/average-prices");
         const result: { prices?: AveragePrice[]; error?: string } = await response.json();
         if (!response.ok || !result.prices) {
           throw new Error(result.error || "Impossible de charger les prix moyens.");
         }
-        if (active) setPricesState({ userId, token, status: "ready", prices: result.prices });
+        if (active) setPricesState({ status: "ready", prices: result.prices });
       } catch (error) {
         if (active) setPricesState({
-          userId, token, status: "error",
+          status: "error",
           message: error instanceof Error ? error.message : "Impossible de charger les prix moyens.",
         });
       }
     })();
     return () => { active = false; };
-  }, [session]);
+  }, [authorized]);
 
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase) return;
     setAuthBusy(true);
     setAuthMessage("");
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    });
-    setAuthBusy(false);
-    if (error) {
-      setAuthMessage(error.message);
-    } else {
-      setEmailSent(true);
-      setAuthMessage("Consultez votre boîte mail pour vous connecter.");
+    try {
+      const response = await fetch("/api/access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const result: { authorized?: boolean; error?: string } = await response.json();
+      if (!response.ok || !result.authorized) {
+        throw new Error(result.error || "Impossible d’ouvrir l’accès partagé.");
+      }
+      setAuthorized(true);
+      setPassword("");
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : "Impossible d’ouvrir l’accès partagé.");
+    } finally {
+      setAuthBusy(false);
     }
   }
 
   async function handleSignOut() {
-    if (!supabase) return;
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      setAuthMessage("Impossible de se déconnecter. Réessayez.");
-    } else {
+    try {
+      const response = await fetch("/api/access", { method: "DELETE" });
+      const result: { authorized?: boolean; error?: string } = await response.json();
+      if (!response.ok || result.authorized !== false) {
+        throw new Error(result.error || "Impossible de verrouiller l’accès.");
+      }
+      setAuthorized(false);
+      setPricesState(null);
+      setHistoryState(null);
+      setTrackedState(null);
+      setSelectedCard(null);
       setDrafts({});
       setPriceMessage("");
+      setAuthMessage("");
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : "Impossible de verrouiller l’accès.");
     }
   }
 
@@ -231,15 +237,15 @@ export default function Home() {
     ].filter(Boolean).join(" "));
     setHistoryMessage("");
     if (!result.cards.length) return;
-    if (!session) {
-      setHistoryMessage("Connectez-vous pour enregistrer les mises actuelles dans l’historique partagé.");
+    if (!authorized) {
+      setHistoryMessage("Déverrouillez l’accès pour enregistrer les mises actuelles dans l’historique partagé.");
       return;
     }
     setRecording(true);
     try {
       const response = await fetch("/api/price-observations", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "record", text, pastedAt: textPastedAt }),
       });
       const saved: { inserted?: number; updated?: number; unmatched?: number; duplicate?: boolean; error?: string } = await response.json();
@@ -257,72 +263,72 @@ export default function Home() {
     }
   }
 
-  const currentState = session && pricesState?.userId === session.user.id &&
-    pricesState.token === session.access_token ? pricesState : null;
+  const currentState = authorized ? pricesState : null;
   const prices = currentState?.status === "ready" ? currentState.prices : [];
   const priceMap = new Map(prices.map((price) => [priceKey(price.card_name, price.card_type), price]));
-  const loadingPrices = Boolean(session && !currentState);
+  const loadingPrices = Boolean(authorized && !currentState);
   const historyQuery = JSON.stringify(cards.map((card) => ({ name: card.cardName, rarity: card.cardType ?? "" })));
   useEffect(() => {
-    if (!session || historyQuery === "[]") return;
+    if (!authorized || historyQuery === "[]") return;
     let active = true;
     const timer = setTimeout(() => {
       void (async () => {
         try {
           const response = await fetch("/api/price-observations", {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "lookup", keys: JSON.parse(historyQuery) }),
           });
           const result: { summaries?: PriceSummary[]; error?: string } = await response.json();
           if (!response.ok || !result.summaries) throw new Error(result.error || "Impossible de charger l’historique des prix.");
-          if (active) setHistoryState({ userId: session.user.id, token: session.access_token, query: historyQuery, revision: historyRevision, summaries: result.summaries, error: null });
+          if (active) setHistoryState({ query: historyQuery, revision: historyRevision, summaries: result.summaries, error: null });
         } catch (error) {
           if (active) setHistoryState({
-            userId: session.user.id, token: session.access_token, query: historyQuery, revision: historyRevision, summaries: [],
+            query: historyQuery, revision: historyRevision, summaries: [],
             error: error instanceof Error ? error.message : "Impossible de charger l’historique des prix.",
           });
         }
       })();
     }, 250);
     return () => { active = false; clearTimeout(timer); };
-  }, [session, historyQuery, historyRevision]);
-  const currentHistory = session && historyState?.userId === session.user.id && historyState.token === session.access_token &&
-    historyState.query === historyQuery && historyState.revision === historyRevision ? historyState : null;
+  }, [authorized, historyQuery, historyRevision]);
+  const currentHistory = authorized && historyState?.query === historyQuery && historyState.revision === historyRevision
+    ? historyState : null;
   const summaries = new Map((currentHistory?.summaries ?? []).map((summary) => [priceKey(summary.name_key, summary.card_type), summary]));
-  const averagesAvailable = authReady && (!session || (currentState?.status === "ready" && (historyQuery === "[]" || currentHistory !== null)));
-  const personalStatus: DataStatus = !authReady ? "loading" : !session ? "signed-out"
-    : !currentState ? "loading" : currentState.status === "error" ? "error" : "ready";
-  const observationStatus: DataStatus = !authReady ? "loading" : !session ? "signed-out"
-    : !currentHistory ? "loading" : currentHistory.error ? "error" : "ready";
+  const averagesAvailable = authorized && currentState?.status === "ready" &&
+    (historyQuery === "[]" || currentHistory !== null);
+  const manualStatus: DataStatus = !currentState ? "loading"
+    : currentState.status === "error" ? "error" : "ready";
+  const observationStatus: DataStatus = !currentHistory ? "loading"
+    : currentHistory.error ? "error" : "ready";
   useEffect(() => {
-    if (!session || activeTab !== "prices") return;
+    if (!authorized || activeTab !== "prices") return;
     let active = true;
     void (async () => {
       try {
         const response = await fetch("/api/price-observations", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "tracking" }),
         });
         const result: { tracked?: TrackedPrice[]; error?: string } = await response.json();
         if (!response.ok || !result.tracked) throw new Error(result.error || "Impossible de charger les cartes suivies.");
-        if (active) setTrackedState({ userId: session.user.id, token: session.access_token, revision: historyRevision, retry: trackingRetry, tracked: result.tracked, error: null });
+        if (active) setTrackedState({ revision: historyRevision, retry: trackingRetry, tracked: result.tracked, error: null });
       } catch (error) {
         if (active) setTrackedState({
-          userId: session.user.id, token: session.access_token, revision: historyRevision, retry: trackingRetry, tracked: [],
+          revision: historyRevision, retry: trackingRetry, tracked: [],
           error: error instanceof Error ? error.message : "Impossible de charger les cartes suivies.",
         });
       }
     })();
     return () => { active = false; };
-  }, [session, activeTab, historyRevision, trackingRetry]);
-  const currentTracking = session && trackedState?.userId === session.user.id && trackedState.token === session.access_token &&
-    trackedState.revision === historyRevision && trackedState.retry === trackingRetry ? trackedState : null;
+  }, [authorized, activeTab, historyRevision, trackingRetry]);
+  const currentTracking = authorized && trackedState?.revision === historyRevision && trackedState.retry === trackingRetry
+    ? trackedState : null;
 
   async function savePrice(name: string, rarity: string) {
-    if (!session || currentState?.status !== "ready" || savingKey) return;
-    const key = JSON.stringify([session.user.id, priceKey(name, rarity)]);
+    if (!authorized || currentState?.status !== "ready" || savingKey) return;
+    const key = priceKey(name, rarity);
     const raw = drafts[key] ?? "";
     const value = Number(raw);
     if (!normalizeName(name) || normalizeName(name).length > 200 ||
@@ -336,13 +342,13 @@ export default function Home() {
     try {
       const response = await fetch("/api/average-prices", {
         method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cardName: name, cardType: rarity, averagePrice: value }),
       });
       const result: { price?: AveragePrice; error?: string } = await response.json();
       if (!response.ok || !result.price) throw new Error(result.error || "Impossible d’enregistrer le prix moyen.");
       const saved = result.price;
-      setPricesState((state) => state?.status === "ready" && state.userId === session.user.id && state.token === session.access_token
+      setPricesState((state) => state?.status === "ready"
         ? { ...state, prices: [...state.prices.filter((entry) => priceKey(entry.card_name, entry.card_type) !== priceKey(name, rarity)), saved] }
         : state);
       setDrafts((current) => {
@@ -360,10 +366,10 @@ export default function Home() {
   }
 
   function priceEditor(name: string, rarity: string, id: string) {
-    const key = JSON.stringify([session?.user.id, priceKey(name, rarity)]);
+    const key = priceKey(name, rarity);
     const saved = priceMap.get(priceKey(name, rarity));
     const draft = drafts[key];
-    const average = authReady && (!session || currentState?.status === "ready") ? effectiveAveragePrice(rarity, saved?.average_price ?? null) : null;
+    const average = authReady && (!authorized || currentState?.status === "ready") ? effectiveAveragePrice(rarity, saved?.average_price ?? null) : null;
     const value = draft ?? (average === null ? "" : String(average));
     const validIdentity = Boolean(normalizeName(name)) && isValidRarity(rarity);
     return (
@@ -372,10 +378,10 @@ export default function Home() {
         <label className="sr-only" htmlFor={id}>Prix moyen de {name || "la carte"} {rarity}</label>
         <input id={id} className="table-input number-input" type="number" min="1" max="1000000000" step="1"
           placeholder="À renseigner" value={value}
-          disabled={!session || currentState?.status !== "ready" || !validIdentity || savingKey !== null}
+          disabled={!authorized || currentState?.status !== "ready" || !validIdentity || savingKey !== null}
           onChange={(event) => setDrafts((current) => ({ ...current, [key]: event.target.value }))} />
         <button className="small-button" type="button" onClick={() => void savePrice(name, rarity)}
-          disabled={!session || currentState?.status !== "ready" || !validIdentity || savingKey !== null || draft === undefined || draft === String(saved?.average_price ?? "")}>
+          disabled={!authorized || currentState?.status !== "ready" || !validIdentity || savingKey !== null || draft === undefined || draft === String(saved?.average_price ?? "")}>
           {savingKey === key ? "…" : "OK"}
         </button>
       </div>
@@ -391,7 +397,7 @@ export default function Home() {
     const average = averagesAvailable ? estimate.value : null;
     const expiration = expirationAt(cardsPastedAt, card.remainingTime);
     return {
-      card, average, personal: reference?.average_price ?? null, summary, estimate, expiration,
+      card, average, manual: reference?.average_price ?? null, summary, estimate, expiration,
       comparison: compareListing(card, average),
       night: isNightExpiration(expiration),
     };
@@ -400,19 +406,19 @@ export default function Home() {
   const sortedRows = [...rows].sort((a, b) => listingSort
     ? compareSortValues(listingSortValue(a, listingSort.column), listingSortValue(b, listingSort.column), listingSort.direction)
     : Number(Boolean(b.comparison?.good)) - Number(Boolean(a.comparison?.good)));
-  const trackedCards = new Map<string, { name: string; rarity: string; personal: number | null; summary?: PriceSummary }>();
+  const trackedCards = new Map<string, { name: string; rarity: string; manual: number | null; summary?: PriceSummary }>();
   for (const entry of currentTracking?.tracked ?? []) {
     const summary = entry.lower_quartile === null || entry.upper_quartile === null ? undefined : {
       ...entry, lower_quartile: entry.lower_quartile, upper_quartile: entry.upper_quartile,
     };
     trackedCards.set(priceKey(entry.name_key, entry.card_type), {
-      name: entry.name_key, rarity: entry.card_type, personal: null, summary,
+      name: entry.name_key, rarity: entry.card_type, manual: null, summary,
     });
   }
   for (const price of prices) {
     const key = priceKey(price.card_name, price.card_type);
     trackedCards.set(key, {
-      name: price.card_name, rarity: price.card_type, personal: price.average_price,
+      name: price.card_name, rarity: price.card_type, manual: price.average_price,
       summary: trackedCards.get(key)?.summary,
     });
   }
@@ -420,11 +426,35 @@ export default function Home() {
     const column = priceSort?.column ?? "name";
     const value = (price: typeof a) => column === "name" ? price.name
       : column === "rarity" ? price.rarity
-      : column === "personal" ? price.personal
-      : currentTracking && !currentTracking.error ? estimatePrice(price.rarity, price.personal, price.summary).value : null;
+      : column === "manual" ? price.manual
+      : currentTracking && !currentTracking.error ? estimatePrice(price.rarity, price.manual, price.summary).value : null;
     return compareSortValues(value(a), value(b), priceSort?.direction ?? "ascending");
   });
-  const selected = session && selectedCard?.userId === session.user.id ? selectedCard : null;
+  const selected = selectedCard;
+
+  if (!authReady || !authorized) {
+    return (
+      <main className="app-shell">
+        <header className="topbar">
+          <a className="brand" href="#" aria-label="WikiTrack accueil">
+            <span className="brand-mark">W</span><span className="brand-name">WIKI<span>TRACK</span></span>
+          </a>
+        </header>
+        {!authReady ? <p className="notice" role="status">Vérification de l’accès partagé…</p> : <section className="account-section">
+          <h1>Accès au groupe</h1>
+          <p>Entrez le mot de passe partagé pour consulter et modifier les données communes.</p>
+          <form className="signin-form" onSubmit={(event) => void handleSignIn(event)}>
+            <label className="sr-only" htmlFor="shared-password">Mot de passe partagé</label>
+            <input id="shared-password" autoComplete="current-password" type="password" required value={password}
+              placeholder="Mot de passe partagé" onChange={(event) => setPassword(event.target.value)} />
+            <button className="primary-button" disabled={authBusy} type="submit">{authBusy ? "Vérification…" : "Entrer"}</button>
+          </form>
+          {authMessage && <p className="notice error" role="alert">{authMessage}</p>}
+        </section>}
+        <footer className="footer">WIKITRACK · Accès privé du groupe</footer>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
@@ -432,10 +462,10 @@ export default function Home() {
         <a className="brand" href="#" aria-label="WikiTrack accueil">
           <span className="brand-mark">W</span><span className="brand-name">WIKI<span>TRACK</span></span>
         </a>
-        {session && <div className="account-chip">
-          <span className="account-email">{session.user.email}</span>
-          <button className="text-button" onClick={() => void handleSignOut()} type="button">Déconnexion</button>
-        </div>}
+        <div className="account-chip">
+          <span className="workspace-label">Espace partagé</span>
+          <button className="text-button" onClick={() => void handleSignOut()} type="button">Verrouiller</button>
+        </div>
       </header>
 
       <nav className="tabs" aria-label="Sections">
@@ -477,7 +507,7 @@ export default function Home() {
           <div className="table-scroll listing-scroll"><table className="review-table listing-table">
             <colgroup>
               <col className="listing-name" /><col className="listing-rarity" /><col className="listing-price" />
-              <col className="listing-kind" /><col className="listing-personal" /><col className="listing-reference" />
+              <col className="listing-kind" /><col className="listing-manual" /><col className="listing-reference" />
               <col className="listing-comparison" /><col className="listing-alerts" /><col className="listing-duration" />
               <col className="listing-remove" />
             </colgroup>
@@ -486,21 +516,21 @@ export default function Home() {
               <SortHeader label="Rareté" column="rarity" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Prix" column="price" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Type de mise" column="kind" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
-              <SortHeader label="Prix moyen personnel" column="personal" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
+              <SortHeader label="Prix moyen partagé" column="manual" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Prix de référence" column="average" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Comparaison" column="comparison" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Alertes" column="alerts" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Durée au collage" column="duration" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <th><span className="sr-only">Supprimer</span></th>
             </tr></thead>
-            <tbody>{sortedRows.map(({ card, average, personal, estimate, summary, comparison, expiration, night }) => <tr key={card.id}>
+            <tbody>{sortedRows.map(({ card, average, manual, estimate, summary, comparison, expiration, night }) => <tr key={card.id}>
               <td><div className="name-cell"><strong>{card.cardName || "Nom non reconnu"}</strong><CopyNameButton name={card.cardName} /></div></td>
               <td><span className={`rarity-badge ${rarityClass(card.cardType)}`}>{card.cardType || "—"}</span></td>
               <td>{card[card.bidKind] !== null ? card[card.bidKind]?.toLocaleString("fr-FR") : "—"}</td>
               <td><span className="bid-kind">{card.bidKind === "currentPrice" ? "Actuelle" : "Départ"}</span></td>
               <td>{priceEditor(card.cardName, card.cardType ?? "", `average-${card.id}`)}</td>
-              <td><ReferencePrice estimate={estimate} personal={personal} summary={summary} available={averagesAvailable}
-                personalStatus={personalStatus} observationStatus={observationStatus} /></td>
+              <td><ReferencePrice estimate={estimate} manual={manual} summary={summary} available={averagesAvailable}
+                manualStatus={manualStatus} observationStatus={observationStatus} /></td>
               <td>{isEnded(card.remainingTime) ? <span className="muted">Terminée</span> : comparison ? <>
                 <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span>
                 {comparison.good && <span className="default-price-note">Mise max : {comparison.maxBid.toLocaleString("fr-FR")}</span>}
@@ -522,58 +552,45 @@ export default function Home() {
         <div className="section-heading"><div><h1 id="saved-heading">Suivi de prix</h1><p>L’historique est disponible dès la première mise actuelle enregistrée.</p></div>{currentState?.status === "ready" && currentTracking && !currentTracking.error && <span className="muted">{sortedPrices.length} carte(s)</span>}</div>
         <label className="sr-only" htmlFor="tracking-search">Rechercher une carte</label>
         <input id="tracking-search" className="tracking-search" type="search" value={trackingSearch} placeholder="Rechercher une carte…" onChange={(event) => { setTrackingSearch(event.target.value); setSelectedCard(null); }} />
-        {!session && <div className="empty-state">Connectez-vous pour consulter le suivi de prix.</div>}
-        {session && !currentTracking && <p className="notice" role="status">Chargement des cartes suivies…</p>}
+        {!currentTracking && <p className="notice" role="status">Chargement des cartes suivies…</p>}
         {currentTracking?.error && <p className="notice error" role="alert">{currentTracking.error}{" "}
           <button type="button" className="text-button" onClick={() => setTrackingRetry((value) => value + 1)}>Réessayer</button></p>}
-        {session && currentState?.status === "ready" && currentTracking && (sortedPrices.length === 0 ? <div className="empty-state">{currentTracking.error ? "Les cartes suivies sont indisponibles." : !trackingSearch.trim() ? "Recherchez une carte pour afficher les résultats." : trackedCards.size === 0 ? "Aucune carte suivie. Analysez des mises actuelles reconnues ou renseignez un prix moyen." : "Aucune carte ne correspond à cette recherche."}</div> :
+        {currentState?.status === "ready" && currentTracking && (sortedPrices.length === 0 ? <div className="empty-state">{currentTracking.error ? "Les cartes suivies sont indisponibles." : !trackingSearch.trim() ? "Recherchez une carte pour afficher les résultats." : trackedCards.size === 0 ? "Aucune carte suivie. Analysez des mises actuelles reconnues ou renseignez un prix moyen." : "Aucune carte ne correspond à cette recherche."}</div> :
           <div className="table-scroll"><table className="review-table saved-table">
             <thead><tr>
               <SortHeader label="Carte" column="name" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Rareté" column="rarity" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
-              <SortHeader label="Prix moyen personnel" column="personal" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
+              <SortHeader label="Prix moyen partagé" column="manual" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Prix de référence" column="reference" sort={priceSort} onSort={(column) => setPriceSort((sort) => nextSort(sort, column))} />
               <th scope="col">Historique</th>
             </tr></thead>
             <tbody>{sortedPrices.map((price) => {
               const key = priceKey(price.name, price.rarity);
               const isSelected = selected !== null && priceKey(selected.name, selected.rarity) === key;
-              const estimate = estimatePrice(price.rarity, price.personal, price.summary);
-              const toggleHistory = () => setSelectedCard(isSelected ? null : { userId: session.user.id, name: price.name, rarity: price.rarity });
+              const estimate = estimatePrice(price.rarity, price.manual, price.summary);
+              const toggleHistory = () => setSelectedCard(isSelected ? null : { name: price.name, rarity: price.rarity });
               return <tr key={key}>
                 <td><div className="name-cell"><button type="button" className="card-history-button" aria-expanded={isSelected}
                   aria-controls={isSelected ? "price-history" : undefined}
                   onClick={toggleHistory}>{price.name}</button><CopyNameButton name={price.name} /></div></td>
                 <td><span className={`rarity-badge ${rarityClass(price.rarity)}`}>{price.rarity}</span></td>
                 <td>{priceEditor(price.name, price.rarity, `saved-${key}`)}</td>
-                <td><ReferencePrice estimate={estimate} personal={price.personal} summary={price.summary} available={!currentTracking.error}
-                  personalStatus="ready" observationStatus={currentTracking.error ? "error" : "ready"} /></td>
+                <td><ReferencePrice estimate={estimate} manual={price.manual} summary={price.summary} available={!currentTracking.error}
+                  manualStatus="ready" observationStatus={currentTracking.error ? "error" : "ready"} /></td>
                 <td><button type="button" className="card-history-button" aria-expanded={isSelected}
                   aria-controls={isSelected ? "price-history" : undefined} aria-label={`${isSelected ? "Fermer" : "Voir"} l’historique de ${price.name} (${price.rarity})`}
                   onClick={toggleHistory}>{isSelected ? "Fermer" : "Voir l’historique"}</button></td>
               </tr>;
             })}</tbody>
           </table></div>)}
-        {selected && session && <PriceHistory key={priceKey(selected.name, selected.rarity)} name={selected.name} rarity={selected.rarity}
-          token={session.access_token} revision={historyRevision} onClose={() => setSelectedCard(null)} />}
+        {selected && <PriceHistory key={priceKey(selected.name, selected.rarity)} name={selected.name} rarity={selected.rarity}
+          revision={historyRevision} onClose={() => setSelectedCard(null)} />}
       </section>}
 
       {priceMessage && <p className="notice" role="status">{priceMessage}</p>}
       {loadingPrices && <p className="notice" role="status">Chargement des prix moyens…</p>}
       {currentState?.status === "error" && <p className="notice error" role="alert">{currentState.message} Actualisez la page pour réessayer.</p>}
-      {currentHistory?.error && <p className="notice error" role="alert">{currentHistory.error} Les références personnelles et par défaut restent disponibles ; actualisez la page pour réessayer.</p>}
-
-      {!supabase && <p className="notice error">Configurez Supabase pour enregistrer vos prix moyens. L’analyse reste disponible sans connexion.</p>}
-      {supabase && !authReady && <p className="notice">Vérification de la connexion…</p>}
-      {supabase && !session && authReady && <section className="account-section">
-        <h2>Enregistrer mes prix moyens</h2>
-        <form className="signin-form" onSubmit={(event) => void handleSignIn(event)}>
-          <label className="sr-only" htmlFor="email">Adresse email</label>
-          <input id="email" autoComplete="email" type="email" required value={email} placeholder="Votre adresse email" onChange={(event) => { setEmail(event.target.value); setEmailSent(false); }} />
-          <button className="primary-button" disabled={authBusy || emailSent} type="submit">{authBusy ? "Envoi…" : emailSent ? "Lien envoyé" : "Recevoir un lien de connexion"}</button>
-        </form>
-      </section>}
-      {authMessage && <p className="notice" role="status">{authMessage}</p>}
+      {currentHistory?.error && <p className="notice error" role="alert">{currentHistory.error} Les références partagées et par défaut restent disponibles ; actualisez la page pour réessayer.</p>}
 
       <footer className="footer">WIKITRACK · Analyse gratuite dans votre navigateur</footer>
     </main>

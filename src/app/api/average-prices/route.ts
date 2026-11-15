@@ -35,8 +35,7 @@ export async function GET(request: Request) {
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await authenticated.supabase
       .from("average_prices")
-      .select("user_id, card_name, name_key, card_type, average_price")
-      .eq("user_id", authenticated.user.id)
+      .select("card_name, name_key, card_type, average_price")
       .order("name_key")
       .order("card_type")
       .range(offset, offset + pageSize - 1);
@@ -67,7 +66,6 @@ export async function PUT(request: Request) {
   }
 
   const row = {
-    user_id: authenticated.user.id,
     card_name: input.cardName.trim().replace(/\s+/gu, " ").normalize("NFC"),
     name_key: normalizeName(input.cardName),
     card_type: normalizeRarity(input.cardType),
@@ -75,8 +73,8 @@ export async function PUT(request: Request) {
   };
   const { data, error } = await authenticated.supabase
     .from("average_prices")
-    .upsert(row, { onConflict: "user_id,name_key,card_type" })
-    .select("user_id, card_name, name_key, card_type, average_price")
+    .upsert(row, { onConflict: "name_key,card_type" })
+    .select("card_name, name_key, card_type, average_price")
     .single();
   if (error) {
     console.error("Could not save average price.", error.message);

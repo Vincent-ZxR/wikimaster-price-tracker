@@ -51,7 +51,7 @@ test("search only matches nonempty names, ignoring case, accents and surrounding
   assert.equal(matchesCardSearch("Pauline Ferrand-Prévot", "   "), false);
 });
 
-test("legendary default is 286, unless a personal average exists", () => {
+test("legendary default is 286, unless a shared average exists", () => {
   assert.equal(effectiveAveragePrice(" l ", null), 286);
   assert.equal(effectiveAveragePrice("L✦", null), 286);
   assert.equal(effectiveAveragePrice("l shiny", 500), 500);
@@ -79,11 +79,11 @@ test("market estimates need five observations and replace only the legendary def
   assert.equal(estimatePrice("UR", null, { ...summary, sample_count: 5 }).quality, "faible");
 });
 
-test("a personal price retains a 75 percent weight when market data is available", () => {
+test("a shared price retains a 75 percent weight when market data is available", () => {
   const summary = { sample_count: 20, lower_quartile: 80, upper_quartile: 160 };
   assert.equal(estimatePrice("UR", 200, undefined).value, 200);
   assert.deepEqual(estimatePrice("UR", 200, summary), {
-    value: 190, market: 160, source: "personnel + observations", quality: "modérée",
+    value: 190, market: 160, source: "partagé + observations", quality: "modérée",
   });
   assert.equal(estimatePrice("UR", 200, { ...summary, lower_quartile: 79 }).quality, "faible");
 });

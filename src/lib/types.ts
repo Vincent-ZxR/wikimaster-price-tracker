@@ -13,7 +13,6 @@ export interface ExtractedCard {
 }
 
 export type AveragePrice = {
-  user_id: string;
   card_name: string;
   name_key: string;
   card_type: string;
@@ -45,7 +44,6 @@ export type HistoricalAverage = {
 
 type AveragePriceHistory = HistoricalAverage & {
   id: string;
-  user_id: string;
   name_key: string;
   card_type: string;
 };

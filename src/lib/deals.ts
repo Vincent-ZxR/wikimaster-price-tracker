@@ -61,13 +61,13 @@ export function effectiveAveragePrice(rarity: string | null, savedAverage: numbe
   return savedAverage ?? (["L", "L✦"].includes(normalizeRarity(rarity ?? "")) ? 286 : null);
 }
 
-export function estimatePrice(rarity: string | null, personal: number | null, summary: PriceSummary | undefined) {
+export function estimatePrice(rarity: string | null, manual: number | null, summary: PriceSummary | undefined) {
   const market = summary && summary.sample_count >= 5 ? summary.upper_quartile : null;
-  const value = personal !== null
-    ? market === null ? personal : Math.round(personal * 0.75 + market * 0.25)
+  const value = manual !== null
+    ? market === null ? manual : Math.round(manual * 0.75 + market * 0.25)
     : market === null ? effectiveAveragePrice(rarity, null) : Math.round(market);
-  const source = personal !== null
-    ? market === null ? "personnel" : "personnel + observations"
+  const source = manual !== null
+    ? market === null ? "partagé" : "partagé + observations"
     : market === null ? value === null ? null : "défaut légendaire" : "observations";
   const quality = market === null ? null
     : summary && summary.sample_count >= 20 && summary.upper_quartile <= summary.lower_quartile * 2

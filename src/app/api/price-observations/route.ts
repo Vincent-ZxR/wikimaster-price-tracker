@@ -114,7 +114,6 @@ export async function POST(request: Request) {
     for (let offset = 0; ; offset += pageSize) {
       const { data, error } = await authenticated.supabase.from("average_price_history")
         .select("average_price, recorded_at")
-        .eq("user_id", authenticated.user.id)
         .eq("name_key", name)
         .eq("card_type", rarity)
         .order("recorded_at", { nullsFirst: true })
@@ -122,7 +121,7 @@ export async function POST(request: Request) {
         .range(offset, offset + pageSize - 1);
       if (error) {
         console.error("Could not load average price history.", error.message);
-        return Response.json({ error: "Impossible de charger l’historique des moyennes personnelles." }, { status: 500 });
+        return Response.json({ error: "Impossible de charger l’historique des moyennes partagées." }, { status: 500 });
       }
       averages.push(...data);
       if (data.length < pageSize) break;

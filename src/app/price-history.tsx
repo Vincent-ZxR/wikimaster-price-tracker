@@ -5,7 +5,6 @@ import { priceChart } from "@/lib/price-chart";
 import type { HistoricalAverage, HistoricalBid } from "@/lib/types";
 
 type HistoryResult = {
-  token: string;
   revision: number;
   retry: number;
 } & ({ observations: HistoricalBid[]; averages: HistoricalAverage[]; error: null } | { observations: null; averages: null; error: string });
@@ -16,10 +15,9 @@ function formatTime(value: string | number) {
   });
 }
 
-export function PriceHistory({ name, rarity, token, revision, onClose }: {
+export function PriceHistory({ name, rarity, revision, onClose }: {
   name: string;
   rarity: string;
-  token: string;
   revision: number;
   onClose: () => void;
 }) {
@@ -31,23 +29,23 @@ export function PriceHistory({ name, rarity, token, revision, onClose }: {
       try {
         const response = await fetch("/api/price-observations", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "history", name, rarity }),
         });
         const data: { observations?: HistoricalBid[]; averages?: HistoricalAverage[]; error?: string } = await response.json();
         if (!response.ok || !data.observations || !data.averages) throw new Error(data.error || "Impossible de charger l’historique.");
-        if (active) setResult({ token, revision, retry, observations: data.observations, averages: data.averages, error: null });
+        if (active) setResult({ revision, retry, observations: data.observations, averages: data.averages, error: null });
       } catch (error) {
         if (active) setResult({
-          token, revision, retry, observations: null, averages: null,
+          revision, retry, observations: null, averages: null,
           error: error instanceof Error ? error.message : "Impossible de charger l’historique.",
         });
       }
     })();
     return () => { active = false; };
-  }, [name, rarity, token, revision, retry]);
+  }, [name, rarity, revision, retry]);
 
-  const current = result?.token === token && result.revision === revision && result.retry === retry ? result : null;
+  const current = result?.revision === revision && result.retry === retry ? result : null;
   const bids = current?.observations ?? [];
   const averages = current?.averages ?? [];
   const datedAverages = averages.filter((average): average is HistoricalAverage & { recorded_at: string } => average.recorded_at !== null);
@@ -56,7 +54,7 @@ export function PriceHistory({ name, rarity, token, revision, onClose }: {
   return <section id="price-history" className="history-panel" aria-labelledby="history-heading">
     <div className="section-heading">
       <div><h2 id="history-heading">Historique : {name} <span className="muted">({rarity})</span></h2>
-        <p>Les mises peuvent provenir d’enchères différentes et ne sont pas des prix de vente. Les moyennes saisies sont personnelles.</p></div>
+        <p>Les mises peuvent provenir d’enchères différentes et ne sont pas des prix de vente. Les moyennes saisies sont partagées.</p></div>
       <button className="text-button" type="button" onClick={onClose}>Fermer</button>
     </div>
     {!current && <p className="notice" role="status">Chargement de l’historique…</p>}
@@ -65,12 +63,12 @@ export function PriceHistory({ name, rarity, token, revision, onClose }: {
     {current && !current.error && !chart && <div className="empty-state">Aucune observation datée à afficher sur la courbe.</div>}
     {bids.length === 1 && <p className="notice">Mise actuelle enregistrée : {bids[0].current_price.toLocaleString("fr-FR")} · {formatTime(bids[0].observed_at)}</p>}
     {chart && <>
-      <div className="chart-legend"><span className="legend-bid">Mises actuelles ({bids.length})</span><span className="legend-average">Moyennes personnelles datées ({datedAverages.length})</span></div>
+      <div className="chart-legend"><span className="legend-bid">Mises actuelles ({bids.length})</span><span className="legend-average">Moyennes partagées datées ({datedAverages.length})</span></div>
       <div className="chart-layout">
         <div className="chart-values"><span>{chart.maximum.toLocaleString("fr-FR")}</span>
           {chart.minimum !== chart.maximum && <span>{chart.minimum.toLocaleString("fr-FR")}</span>}</div>
         <svg className="price-chart" viewBox="0 0 800 200" role="img"
-          aria-label={`Courbes de ${bids.length} mises observées et ${datedAverages.length} moyennes personnelles, de ${chart.minimum.toLocaleString("fr-FR")} à ${chart.maximum.toLocaleString("fr-FR")}. Le détail est disponible ci-dessous.`}>
+          aria-label={`Courbes de ${bids.length} mises observées et ${datedAverages.length} moyennes partagées, de ${chart.minimum.toLocaleString("fr-FR")} à ${chart.maximum.toLocaleString("fr-FR")}. Le détail est disponible ci-dessous.`}>
           <line x1="8" y1="188" x2="792" y2="188" className="chart-grid" />
           {bids.length > 1 && <polyline className="chart-line" points={chart.bidPoints.map(({ x, y }) => `${x},${y}`).join(" ")} />}
           {bids.map((bid, index) => <circle key={index} cx={chart.bidPoints[index].x} cy={chart.bidPoints[index].y} r="3" className="chart-point">
@@ -78,7 +76,7 @@ export function PriceHistory({ name, rarity, token, revision, onClose }: {
           </circle>)}
           {datedAverages.length > 1 && <polyline className="chart-line chart-average-line" points={chart.averagePoints.map(({ x, y }) => `${x},${y}`).join(" ")} />}
           {datedAverages.map((average, index) => <circle key={index} cx={chart.averagePoints[index].x} cy={chart.averagePoints[index].y} r="4" className="chart-average-point">
-            <title>Moyenne personnelle · {formatTime(average.recorded_at)} : {average.average_price.toLocaleString("fr-FR")}</title>
+            <title>Moyenne partagée · {formatTime(average.recorded_at)} : {average.average_price.toLocaleString("fr-FR")}</title>
           </circle>)}
         </svg>
       </div>
@@ -93,9 +91,9 @@ export function PriceHistory({ name, rarity, token, revision, onClose }: {
         </table></div>
       </details>
       <details className="history-details">
-        <summary>Voir les {averages.length} moyenne(s) personnelle(s)</summary>
+        <summary>Voir les {averages.length} moyenne(s) partagée(s)</summary>
         <div className="history-table-scroll"><table className="review-table">
-          <thead><tr><th>Date de saisie</th><th>Prix moyen personnel</th></tr></thead>
+          <thead><tr><th>Date de saisie</th><th>Prix moyen partagé</th></tr></thead>
           <tbody>{averages.map((average, index) => <tr key={index}><td>{average.recorded_at === null ? "Date inconnue" : formatTime(average.recorded_at)}</td><td>{average.average_price.toLocaleString("fr-FR")}</td></tr>)}</tbody>
         </table></div>
       </details>
