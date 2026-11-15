@@ -130,7 +130,7 @@ test("finished starting bids are not recorded or flagged", () => {
   assert.equal(compareListing(cards[0], 1000).good, false);
   assert.deepEqual(priceObservations(cards, null), []);
 });
-test("keeps a card editable and warns when a multiline header is missing", () => {
+test("keeps a placeholder and warns when a multiline header is missing", () => {
   const { cards, warnings } = parseMarketplaceText(
     "Nom sans rareté\nMise actuelle\n50\nDurée\n1h 10m",
   );

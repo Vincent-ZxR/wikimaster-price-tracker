@@ -95,6 +95,20 @@ h2 { font-size: 18px; }
 }
 .review-table td { padding: 10px 12px; border-bottom: 1px solid #202722; font-size: 12px; }
 .review-table tbody tr:last-child td { border-bottom: 0; }
+.listing-scroll { position: relative; }
+.listing-table { min-width: 940px; table-layout: fixed; white-space: normal; }
+.listing-table th, .listing-table td { padding: 9px 6px; overflow-wrap: anywhere; }
+.listing-name { width: 18%; }
+.listing-rarity, .listing-price { width: 6%; }
+.listing-kind, .listing-alerts { width: 8%; }
+.listing-personal { width: 15%; }
+.listing-reference { width: 12%; }
+.listing-comparison { width: 10%; }
+.listing-duration { width: 14%; }
+.listing-remove { width: 3%; }
+.listing-table .name-cell { flex-wrap: wrap; align-items: flex-start; }
+.listing-table .name-cell strong { min-width: 0; }
+.listing-table .price-editor .number-input { width: 100%; min-width: 0; }
 .sort-button { padding: 0; border: 0; background: none; color: inherit; cursor: pointer; font-size: inherit; text-align: left; }
 .sort-button:hover, th[aria-sort] .sort-button { color: var(--foreground); }
 .table-input, .signin-form input, textarea {
@@ -105,13 +119,11 @@ h2 { font-size: 18px; }
 }
 .table-input { height: 34px; padding: 0 8px; }
 .table-input:disabled { opacity: .6; }
-.name-input { width: 180px; font-weight: 700; }
 .name-cell, .copy-control { display: flex; align-items: center; gap: 6px; }
 .copy-button { min-width: 62px; height: 34px; padding: 0 8px; border: 1px solid #39433b; border-radius: 5px; background: #19211b; color: var(--foreground); cursor: pointer; font-size: 10px; }
 .copy-button:hover:not(:disabled) { border-color: var(--accent); }
 .copy-button:disabled { opacity: .5; cursor: not-allowed; }
 .copy-error { max-width: 180px; color: #f0b29e; font-size: 10px; white-space: normal; }
-.type-input { width: 56px; }
 .rarity-badge {
   display: inline-flex;
   align-items: center;
@@ -128,15 +140,13 @@ h2 { font-size: 18px; }
 }
 .rarity-badge.rarity-L { background: #f7d951; color: #211a05; }
 .rarity-badge.rarity-L-shiny { background: #211a05; color: #f7d951; border-color: #f7d951; }
-.type-input.rarity-L-shiny { width: 78px; }
 .rarity-badge.rarity-UR { background: #f2a646; color: #271704; }
 .rarity-badge.rarity-C { background: #c6f4d8; color: #11241a; }
 .rarity-badge.rarity-PC { background: #baccf1; color: #111a2b; }
 .rarity-badge.rarity-SR { background: #d56e9d; color: #290f1b; }
 .rarity-badge.rarity-R { background: #bba8ed; color: #1d1531; }
 .number-input { width: 110px; }
-.time-input { width: 100px; }
-.bid-kind { padding: 7px 8px; border: 1px solid #3b5745; border-radius: 6px; background: #16271c; color: #b4e8c5; cursor: pointer; font-size: 11px; }
+.bid-kind { display: inline-block; padding: 5px 6px; border: 1px solid #3b5745; border-radius: 6px; background: #16271c; color: #b4e8c5; font-size: 11px; }
 .price-editor { display: flex; align-items: center; gap: 5px; }
 .default-price-note { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
 .small-button, .primary-button {

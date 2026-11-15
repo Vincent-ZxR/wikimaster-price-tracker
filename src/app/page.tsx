@@ -231,28 +231,6 @@ export default function Home() {
     }
   }
 
-  function updateCard(id: string, field: "cardName" | "cardType" | "currentPrice" | "startingPrice" | "remainingTime", value: string) {
-    setCards((current) => current.map((card) => card.id === id ? {
-      ...card,
-      [field]: field === "currentPrice" || field === "startingPrice"
-        ? value === "" ? null : Number(value)
-        : value,
-    } : card));
-  }
-
-  function updateBidKind(id: string, kind: ExtractedCard["bidKind"]) {
-    setCards((current) => current.map((card) => {
-      if (card.id !== id) return card;
-      const price = card[card.bidKind];
-      return {
-        ...card,
-        bidKind: kind,
-        startingPrice: kind === "startingPrice" ? price : null,
-        currentPrice: kind === "currentPrice" ? price : null,
-      };
-    }));
-  }
-
   const currentState = session && pricesState?.userId === session.user.id &&
     pricesState.token === session.access_token ? pricesState : null;
   const prices = currentState?.status === "ready" ? currentState.prices : [];
@@ -466,7 +444,13 @@ export default function Home() {
           <div className="counts"><span>{cards.length} annonce(s)</span><span className="deal-count">{dealCount} bonne(s) affaire(s)</span></div>
         </div>
         {cards.length === 0 ? <div className="empty-state">Aucune annonce pour le moment. Collez le texte du marché ci-dessus.</div> :
-          <div className="table-scroll"><table className="review-table">
+          <div className="table-scroll listing-scroll"><table className="review-table listing-table">
+            <colgroup>
+              <col className="listing-name" /><col className="listing-rarity" /><col className="listing-price" />
+              <col className="listing-kind" /><col className="listing-personal" /><col className="listing-reference" />
+              <col className="listing-comparison" /><col className="listing-alerts" /><col className="listing-duration" />
+              <col className="listing-remove" />
+            </colgroup>
             <thead><tr>
               <SortHeader label="Carte" column="name" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
               <SortHeader label="Rareté" column="rarity" sort={listingSort} onSort={(column) => setListingSort((sort) => nextSort(sort, column))} />
@@ -480,18 +464,16 @@ export default function Home() {
               <th><span className="sr-only">Supprimer</span></th>
             </tr></thead>
             <tbody>{sortedRows.map(({ card, average, estimate, summary, comparison, expiration, night }) => <tr key={card.id}>
-              <td><div className="name-cell"><label className="sr-only" htmlFor={`name-${card.id}`}>Nom de la carte</label><input id={`name-${card.id}`} className="table-input name-input" value={card.cardName} onChange={(event) => updateCard(card.id, "cardName", event.target.value)} /><CopyNameButton name={card.cardName} /></div></td>
-              <td><label className="sr-only" htmlFor={`type-${card.id}`}>Rareté</label><input id={`type-${card.id}`} className={`table-input type-input rarity-badge ${rarityClass(card.cardType)}`} value={card.cardType ?? ""} onChange={(event) => updateCard(card.id, "cardType", event.target.value)} /></td>
-              <td><label className="sr-only" htmlFor={`bid-${card.id}`}>Prix de la mise</label><input id={`bid-${card.id}`} className="table-input number-input" type="number" min="0" step="1" value={card[card.bidKind] ?? ""} onChange={(event) => updateCard(card.id, card.bidKind, event.target.value)} /></td>
-              <td><label className="sr-only" htmlFor={`kind-${card.id}`}>Type de mise</label><select id={`kind-${card.id}`} className="bid-kind" value={card.bidKind} onChange={(event) => updateBidKind(card.id, event.target.value === "currentPrice" ? "currentPrice" : "startingPrice")}>
-                <option value="startingPrice">Départ</option><option value="currentPrice">Actuelle</option>
-              </select></td>
+              <td><div className="name-cell"><strong>{card.cardName || "Nom non reconnu"}</strong><CopyNameButton name={card.cardName} /></div></td>
+              <td><span className={`rarity-badge ${rarityClass(card.cardType)}`}>{card.cardType || "—"}</span></td>
+              <td>{card[card.bidKind] !== null ? card[card.bidKind]?.toLocaleString("fr-FR") : "—"}</td>
+              <td><span className="bid-kind">{card.bidKind === "currentPrice" ? "Actuelle" : "Départ"}</span></td>
               <td>{priceEditor(card.cardName, card.cardType ?? "", `average-${card.id}`)}</td>
               <td>{average !== null ? <><strong>{average.toLocaleString("fr-FR")}</strong><span className="default-price-note">{estimate.source}{estimate.quality ? ` · fiabilité indicative ${estimate.quality}` : ""}</span></> : <span className="muted">{averagesAvailable ? "Estimation indisponible" : "Chargement…"}</span>}
                 {summary && <span className="default-price-note">{summary.sample_count} observation(s) récentes{summary.sample_count < 5 ? " · 5 pour estimer les mises" : ""}</span>}</td>
               <td>{isEnded(card.remainingTime) ? <span className="muted">Terminée</span> : comparison ? <span className={comparison.good ? "deal-badge" : "comparison"}>{comparison.good ? "Bonne affaire · " : ""}{comparison.discount >= 0 ? "−" : "+"}{Math.abs(comparison.discount).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %</span> : <span className="muted">{!averagesAvailable ? "Prix indisponibles" : average !== null ? "Mise à renseigner" : "Sans prix moyen"}</span>}</td>
               <td><div className="flags">{night ? <span className="flag night-flag">Expire entre 3h et 7h</span> : <span className="muted">—</span>}</div></td>
-              <td><label className="sr-only" htmlFor={`time-${card.id}`}>Durée au collage</label><input id={`time-${card.id}`} className="table-input time-input" value={card.remainingTime ?? ""} onChange={(event) => updateCard(card.id, "remainingTime", event.target.value)} />
+              <td>{card.remainingTime || "—"}
                 {expiration && <span className="expiration">Expire le {expiration.toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>}
                 {cardsPastedAt !== null && !expiration && !isEnded(card.remainingTime) && <span className="expiration">Durée invalide</span>}</td>
               <td><button className="remove-row" type="button" aria-label={`Retirer ${card.cardName || "l’annonce"}`} onClick={() => setCards((current) => current.filter((entry) => entry.id !== card.id))}>×</button></td>
