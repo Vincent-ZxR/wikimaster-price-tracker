@@ -194,14 +194,12 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
-  const [text, setText] = useState("");
   const [cards, setCards] = useState<ExtractedCard[]>([]);
   const [activeTab, setActiveTab] = useState<"annonces" | "prices" | "keywords">("annonces");
   const [listingSort, setListingSort] = useState<Sort<ListingColumn> | null>(null);
   const [dealsOnly, setDealsOnly] = useState(false);
   const [priceSort, setPriceSort] = useState<Sort<PriceColumn> | null>(null);
   const [trackingSearch, setTrackingSearch] = useState("");
-  const [textPastedAt, setTextPastedAt] = useState<number | null>(null);
   const [cardsPastedAt, setCardsPastedAt] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const [pricesState, setPricesState] = useState<PricesState | null>(null);
@@ -308,36 +306,54 @@ export default function Home() {
   }
 
   async function handleAnalyze() {
-    const result = parseMarketplaceText(text);
-    setCards(result.cards.map((card) => ({ ...card, id: crypto.randomUUID() })));
-    setCardsPastedAt(textPastedAt);
-    setNotice([
-      result.cards.length ? `${result.cards.length} annonce(s) détectée(s).` : "",
-      ...result.warnings,
-    ].filter(Boolean).join(" "));
-    setHistoryMessage("");
-    if (!result.cards.length) return;
-    if (!authorized) {
-      setHistoryMessage("Déverrouillez l’accès pour enregistrer les mises actuelles dans l’historique partagé.");
-      return;
-    }
     setRecording(true);
+    setNotice("");
+    setHistoryMessage("");
     try {
-      const response = await fetch("/api/price-observations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "record", text, pastedAt: textPastedAt }),
-      });
-      const saved: { inserted?: number; updated?: number; unmatched?: number; duplicate?: boolean; error?: string } = await response.json();
-      if (!response.ok || saved.inserted === undefined || saved.updated === undefined ||
-          saved.unmatched === undefined || saved.duplicate === undefined) {
-        throw new Error(saved.error || "Impossible d’enregistrer les observations.");
+      let text: string;
+      try {
+        if (!navigator.clipboard?.readText) throw new Error("Clipboard unavailable");
+        text = await navigator.clipboard.readText();
+      } catch {
+        setNotice("Impossible de lire le presse-papiers. Vérifiez les autorisations du navigateur.");
+        return;
       }
-      setHistoryMessage(saved.duplicate ? "Import identique déjà enregistré." :
-        `${saved.inserted} mise(s) ajoutée(s), ${saved.updated} mise(s) mise(s) à jour.${saved.unmatched ? ` ${saved.unmatched} annonce(s) sans vendeur ou heure d’expiration fiable ne peuvent pas être rapprochées.` : ""} Les annonces incertaines et les mises de départ sont exclues.`);
-      setHistoryRevision((revision) => revision + 1);
-    } catch (error) {
-      setHistoryMessage(error instanceof Error ? error.message : "Impossible d’enregistrer les observations.");
+
+      if (!text.trim()) {
+        setNotice("Le presse-papiers est vide. Copiez le texte du marché WikiMasters.");
+        return;
+      }
+
+      const pastedAt = Date.now();
+      const result = parseMarketplaceText(text);
+      setCards(result.cards.map((card) => ({ ...card, id: crypto.randomUUID() })));
+      setCardsPastedAt(pastedAt);
+      setNotice([
+        result.cards.length ? `${result.cards.length} annonce(s) détectée(s).` : "",
+        ...result.warnings,
+      ].filter(Boolean).join(" "));
+      if (!result.cards.length) return;
+      if (!authorized) {
+        setHistoryMessage("Déverrouillez l’accès pour enregistrer les mises actuelles dans l’historique partagé.");
+        return;
+      }
+      try {
+        const response = await fetch("/api/price-observations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "record", text, pastedAt }),
+        });
+        const saved: { inserted?: number; updated?: number; unmatched?: number; duplicate?: boolean; error?: string } = await response.json();
+        if (!response.ok || saved.inserted === undefined || saved.updated === undefined ||
+            saved.unmatched === undefined || saved.duplicate === undefined) {
+          throw new Error(saved.error || "Impossible d’enregistrer les observations.");
+        }
+        setHistoryMessage(saved.duplicate ? "Import identique déjà enregistré." :
+          `${saved.inserted} mise(s) ajoutée(s), ${saved.updated} mise(s) mise(s) à jour.${saved.unmatched ? ` ${saved.unmatched} annonce(s) sans vendeur ou heure d’expiration fiable ne peuvent pas être rapprochées.` : ""} Les annonces incertaines et les mises de départ sont exclues.`);
+        setHistoryRevision((revision) => revision + 1);
+      } catch (error) {
+        setHistoryMessage(error instanceof Error ? error.message : "Impossible d’enregistrer les observations.");
+      }
     } finally {
       setRecording(false);
     }
@@ -565,24 +581,9 @@ export default function Home() {
       {activeTab === "annonces" && <>
       <section className="import-section" aria-labelledby="import-heading">
         <div className="section-heading"><h2 id="import-heading">Importer des annonces</h2></div>
-        <label className="sr-only" htmlFor="market-text">Texte du marché WikiMasters</label>
-        <div className="import-controls">
-          <textarea id="market-text" value={text} onPaste={(event) => {
-            event.preventDefault();
-            const pastedText = event.clipboardData.getData("text/plain");
-            if (!pastedText.trim()) {
-              setNotice("Collez du texte provenant du marché WikiMasters.");
-              return;
-            }
-            setText(pastedText);
-            setTextPastedAt(Date.now());
-            setNotice("");
-          }} onChange={(event) => {
-            setText(event.target.value);
-            setTextPastedAt(null);
-          }} placeholder="Collez ici le texte copié du marché WikiMasters…" />
-          <button className="primary-button" disabled={!text.trim() || recording} onClick={() => void handleAnalyze()} type="button">Analyser</button>
-        </div>
+        <button className="primary-button" disabled={recording} onClick={() => void handleAnalyze()} type="button">
+          {recording ? "Analyse…" : "Analyser le texte copié"}
+        </button>
         {notice && <p className="notice" role="status">{notice}</p>}
         {historyMessage && <p className="notice" role="status">{historyMessage}</p>}
       </section>
@@ -595,7 +596,7 @@ export default function Home() {
         {cards.length > 0 && <label className="deals-filter">
           <input type="checkbox" checked={dealsOnly} onChange={(event) => setDealsOnly(event.target.checked)} /> Afficher uniquement les bonnes affaires
         </label>}
-        {cards.length === 0 ? <div className="empty-state">Aucune annonce pour le moment. Collez le texte du marché ci-dessus.</div> :
+        {cards.length === 0 ? <div className="empty-state">Aucune annonce pour le moment. Copiez le texte du marché puis analysez-le avec le bouton ci-dessus.</div> :
           sortedRows.length === 0 ? <div className="empty-state">Aucune bonne affaire parmi les annonces actuelles.</div> :
           <div className="table-scroll listing-scroll"><table className="review-table listing-table">
             <colgroup>
