@@ -171,9 +171,6 @@ h2 { font-size: 18px; }
 .footnote { margin: 10px 0 0; font-size: 11px; line-height: 1.5; }
 .empty-state { padding: 22px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
 .import-section, .account-section, .saved-section { margin-top: 30px; }
-.import-controls { display: flex; align-items: stretch; gap: 10px; }
-.import-controls textarea { flex: 1; min-height: 78px; padding: 11px; resize: vertical; line-height: 1.4; }
-.import-controls .primary-button { align-self: end; }
 .notice { margin: 12px 0 0; color: #c9dfa9; font-size: 12px; line-height: 1.5; }
 .notice.error { color: #f0b29e; }
 .signin-form { display: flex; gap: 8px; max-width: 520px; margin-top: 12px; }
@@ -211,6 +208,5 @@ ul.keyword-list { padding: 0; border: 1px solid var(--line); border-radius: 8px;
   .tabs { overflow-x: auto; }
   .tabs button { white-space: nowrap; }
   .section-heading { align-items: start; flex-direction: column; }
-  .import-controls, .signin-form { flex-direction: column; }
-  .import-controls .primary-button { align-self: stretch; }
+  .signin-form { flex-direction: column; }
 }
